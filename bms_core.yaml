@@ -1,0 +1,673 @@
+substitutions:
+  cell_width: "9"
+  cell_gap: "6"
+
+debug:
+
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [ hmi_bms ]
+
+# Time component required for daily energy sensors
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+hmi_bms:
+  id: bms_hub
+  uart_id: uart_bus
+  update_interval: 100ms
+  bypass_crc: true
+  address: 0x01
+  log_sync_prefix: "[c  0]:"
+
+sensor:
+  - platform: uptime
+    id: uptime_sec
+    name: "Uptime"
+    update_interval: 5s
+
+  - platform: internal_temperature
+    name: "Internal Temperature"
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+
+  - platform: hmi_bms
+    soc:
+      id: bms_soc
+      name: "BMS SOC"
+    soc_voltage_based:
+      id: bms_soc_voltage_based
+      name: "BMS SOC Voltage Based"
+      unit_of_measurement: "%"
+      device_class: battery
+    soc_basic_count:
+      id: bms_soc_basic_count
+      name: "BMS SOC Basic Count"
+      unit_of_measurement: "%"
+      device_class: battery
+    current_mA:
+      id: bms_current_mA
+      name: "BMS Current"
+      unit_of_measurement: "A"
+      filters:
+        - multiply: 0.001
+    charge_raw:
+      id: bms_charge_raw
+      name: "BMS Charge Raw"
+      unit_of_measurement: "Ah"
+    battery_voltage_mV:
+      id: bms_voltage_mV
+      name: "BMS Voltage"
+      unit_of_measurement: "V"
+      filters:
+        - multiply: 0.001
+    output_voltage_mV:
+      id: bms_output_voltage_mV
+      name: "BMS Output Voltage"
+      unit_of_measurement: "V"
+      filters:
+        - multiply: 0.001
+    capacity_mC:
+      id: bms_capacity_mC
+      name: "BMS Capacity"
+      unit_of_measurement: "Ah"
+    temperature_min_dC:
+      id: bms_temp_min
+      name: "BMS Temp Min"
+      unit_of_measurement: "°C"
+      filters:
+        - multiply: 0.1
+    temperature_max_dC:
+      id: bms_temp_max
+      name: "BMS Temp Max"
+      unit_of_measurement: "°C"
+      filters:
+        - multiply: 0.1
+    cell_voltage_min_mV:
+      id: bms_cell_min
+      name: "BMS Cell Min"
+      unit_of_measurement: "V"
+      filters:
+        - multiply: 0.001
+    cell_voltage_max_mV:
+      id: bms_cell_max
+      name: "BMS Cell Max"
+      unit_of_measurement: "V"
+      filters:
+        - multiply: 0.001
+    millis:
+      id: bms_millis
+      name: "BMS Millis"
+    system_sm:
+      id: bms_system_state
+      name: "BMS System State"
+    system_request:
+      id: bms_system_req
+      name: "BMS System Request"
+    contactor_sm:
+      id: bms_contactor_state
+      name: "BMS Contactor State"
+    pos_contactor_voltage_mV:
+      name: "BMS Contactor Voltage Positive"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    neg_contactor_voltage_mV:
+      name: "BMS Contactor Voltage Negative"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    supply_voltage_3V3_mV:
+      name: "BMS Supply 3V3"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    supply_voltage_5V_mV:
+      name: "BMS Supply 5V"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    supply_voltage_12V_mV:
+      name: "BMS Supply 12V"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    supply_voltage_contactor_mV:
+      name: "BMS Supply Contactor"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    cell_voltage_delta:
+      id: bms_cell_delta
+      name: "BMS Cell Delta"
+      unit_of_measurement: "V"
+      filters: [multiply: 0.001]
+    adc_sample_count:
+      id: bms_adc_samples
+      name: "BMS ADC Sample Count"
+    loop_frequency_hz:
+      id: bms_loop_freq
+      name: "BMS Loop Frequency"
+    cell_voltages:
+      - name: "Cell Voltage 001"
+      # ... (Keeping the full list of cell voltages is fine, they don't need triggers)
+      - name: "Cell Voltage 002"
+      - name: "Cell Voltage 003"
+      - name: "Cell Voltage 004"
+      - name: "Cell Voltage 005"
+      - name: "Cell Voltage 006"
+      - name: "Cell Voltage 007"
+      - name: "Cell Voltage 008"
+      - name: "Cell Voltage 009"
+      - name: "Cell Voltage 010"
+      - name: "Cell Voltage 011"
+      - name: "Cell Voltage 012"
+      - name: "Cell Voltage 013"
+      - name: "Cell Voltage 014"
+      - name: "Cell Voltage 015"
+      - name: "Cell Voltage 016"
+      - name: "Cell Voltage 017"
+      - name: "Cell Voltage 018"
+      - name: "Cell Voltage 019"
+      - name: "Cell Voltage 020"
+      - name: "Cell Voltage 021"
+      - name: "Cell Voltage 022"
+      - name: "Cell Voltage 023"
+      - name: "Cell Voltage 024"
+      - name: "Cell Voltage 025"
+      - name: "Cell Voltage 026"
+      - name: "Cell Voltage 027"
+      - name: "Cell Voltage 028"
+      - name: "Cell Voltage 029"
+      - name: "Cell Voltage 030"
+      - name: "Cell Voltage 031"
+      - name: "Cell Voltage 032"
+      - name: "Cell Voltage 033"
+      - name: "Cell Voltage 034"
+      - name: "Cell Voltage 035"
+      - name: "Cell Voltage 036"
+      - name: "Cell Voltage 037"
+      - name: "Cell Voltage 038"
+      - name: "Cell Voltage 039"
+      - name: "Cell Voltage 040"
+      - name: "Cell Voltage 041"
+      - name: "Cell Voltage 042"
+      - name: "Cell Voltage 043"
+      - name: "Cell Voltage 044"
+      - name: "Cell Voltage 045"
+      - name: "Cell Voltage 046"
+      - name: "Cell Voltage 047"
+      - name: "Cell Voltage 048"
+      - name: "Cell Voltage 049"
+      - name: "Cell Voltage 050"
+      - name: "Cell Voltage 051"
+      - name: "Cell Voltage 052"
+      - name: "Cell Voltage 053"
+      - name: "Cell Voltage 054"
+      - name: "Cell Voltage 055"
+      - name: "Cell Voltage 056"
+      - name: "Cell Voltage 057"
+      - name: "Cell Voltage 058"
+      - name: "Cell Voltage 059"
+      - name: "Cell Voltage 060"
+      - name: "Cell Voltage 061"
+      - name: "Cell Voltage 062"
+      - name: "Cell Voltage 063"
+      - name: "Cell Voltage 064"
+      - name: "Cell Voltage 065"
+      - name: "Cell Voltage 066"
+      - name: "Cell Voltage 067"
+      - name: "Cell Voltage 068"
+      - name: "Cell Voltage 069"
+      - name: "Cell Voltage 070"
+      - name: "Cell Voltage 071"
+      - name: "Cell Voltage 072"
+      - name: "Cell Voltage 073"
+      - name: "Cell Voltage 074"
+      - name: "Cell Voltage 075"
+      - name: "Cell Voltage 076"
+      - name: "Cell Voltage 077"
+      - name: "Cell Voltage 078"
+      - name: "Cell Voltage 079"
+      - name: "Cell Voltage 080"
+      - name: "Cell Voltage 081"
+      - name: "Cell Voltage 082"
+      - name: "Cell Voltage 083"
+      - name: "Cell Voltage 084"
+      - name: "Cell Voltage 085"
+      - name: "Cell Voltage 086"
+      - name: "Cell Voltage 087"
+      - name: "Cell Voltage 088"
+      - name: "Cell Voltage 089"
+      - name: "Cell Voltage 090"
+      - name: "Cell Voltage 091"
+      - name: "Cell Voltage 092"
+      - name: "Cell Voltage 093"
+      - name: "Cell Voltage 094"
+      - name: "Cell Voltage 095"
+      - name: "Cell Voltage 096"
+      - name: "Cell Voltage 097"
+      - name: "Cell Voltage 098"
+      - name: "Cell Voltage 099"
+      - name: "Cell Voltage 100"
+      - name: "Cell Voltage 101"
+      - name: "Cell Voltage 102"
+      - name: "Cell Voltage 103"
+      - name: "Cell Voltage 104"
+      - name: "Cell Voltage 105"
+      - name: "Cell Voltage 106"
+      - name: "Cell Voltage 107"
+      - name: "Cell Voltage 108"
+    module_temperatures:
+      - name: "BMS Module Temp 1"
+      - name: "BMS Module Temp 2"
+      - name: "BMS Module Temp 3"
+      - name: "BMS Module Temp 4"
+      - name: "BMS Module Temp 5"
+      - name: "BMS Module Temp 6"
+      - name: "BMS Module Temp 7"
+      - name: "BMS Module Temp 8"
+
+  - platform: wifi_signal
+    id: wifi_rssi_sensor
+    name: "WiFi RSSI"
+
+  # --- ENERGY SENSORS ---
+
+  # 1. Total Power (kW) - calculated from V and A
+  - platform: template
+    name: "BMS Power"
+    id: bms_power_kW
+    unit_of_measurement: "kW"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 3
+    lambda: |-
+      if (std::isnan(id(bms_voltage_mV).state) || std::isnan(id(bms_current_mA).state)) {
+        return NAN;
+      }
+      // Voltage is V, Current is A -> Power is W. Divide by 1000 for kW.
+      return (id(bms_voltage_mV).state * id(bms_current_mA).state) / 1000.0f;
+    update_interval: 100ms
+
+  # 2. Split Power into Charging (Positive) and Discharging (Negative -> Positive)
+  # Source is now kW, so no extra division needed.
+  - platform: template
+    name: "BMS Power Charging"
+    id: bms_power_charging
+    unit_of_measurement: "kW"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 3
+    lambda: |-
+      if (std::isnan(id(bms_power_kW).state)) return NAN;
+      return std::max(0.0f, id(bms_power_kW).state);
+    update_interval: 100ms
+
+  - platform: template
+    name: "BMS Power Discharging"
+    id: bms_power_discharging
+    unit_of_measurement: "kW"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 3
+    lambda: |-
+      if (std::isnan(id(bms_power_kW).state)) return NAN;
+      // Convert negative power (discharging) to positive value for integration
+      return std::abs(std::min(0.0f, id(bms_power_kW).state));
+    update_interval: 100ms
+
+  # 3. Daily Energy Sensors (kWh)
+  - platform: total_daily_energy
+    name: "BMS Energy Charged Daily"
+    id: bms_energy_charged_daily
+    power_id: bms_power_charging
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 3
+    method: left
+    time_id: homeassistant_time
+
+  - platform: total_daily_energy
+    name: "BMS Energy Discharged Daily"
+    id: bms_energy_discharged_daily
+    power_id: bms_power_discharging
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 3
+    method: left
+    time_id: homeassistant_time
+
+  # 4. Net Daily Energy (Charged - Discharged)
+  - platform: template
+    name: "BMS Net Energy Daily"
+    id: bms_energy_net_daily
+    unit_of_measurement: "kWh"
+    device_class: energy
+    state_class: total
+    accuracy_decimals: 3
+    lambda: |-
+      if (std::isnan(id(bms_energy_charged_daily).state) || std::isnan(id(bms_energy_discharged_daily).state)) {
+        return NAN;
+      }
+      return id(bms_energy_charged_daily).state - id(bms_energy_discharged_daily).state;
+    update_interval: 1s
+
+text_sensor:
+  - platform: wifi_info
+    ssid:
+      id: wifi_ssid_sensor
+      name: "WiFi SSID"
+    ip_address:
+      id: wifi_ip_sensor
+      name: "WiFi IP"
+    bssid:
+      name: "BSSID"
+
+  - platform: hmi_bms
+    serial:
+      id: bms_serial
+      name: "BMS Serial"
+    balancing_cells:
+      id: bms_balancing_cells
+      name: "BMS Balancing Cells"
+    event_history:
+      id: bms_event_history
+      name: "BMS Event History"
+    log:
+      id: bms_log
+      name: "BMS Log"
+      internal: true
+    log_lines:
+      - id: bms_log_line_01
+        name: "BMS Log 01"
+      - id: bms_log_line_02
+        name: "BMS Log 02"
+      - id: bms_log_line_03
+        name: "BMS Log 03"
+      - id: bms_log_line_04
+        name: "BMS Log 04"
+      - id: bms_log_line_05
+        name: "BMS Log 05"
+      - id: bms_log_line_06
+        name: "BMS Log 06"
+      - id: bms_log_line_07
+        name: "BMS Log 07"
+      - id: bms_log_line_08
+        name: "BMS Log 08"
+      - id: bms_log_line_09
+        name: "BMS Log 09"
+      - id: bms_log_line_10
+        name: "BMS Log 10"
+      - id: bms_log_line_11
+        name: "BMS Log 11"
+      - id: bms_log_line_12
+        name: "BMS Log 12"
+      - id: bms_log_line_13
+        name: "BMS Log 13"
+      - id: bms_log_line_14
+        name: "BMS Log 14"
+      - id: bms_log_line_15
+        name: "BMS Log 15"
+      - id: bms_log_line_16
+        name: "BMS Log 16"
+      - id: bms_log_line_17
+        name: "BMS Log 17"
+      - id: bms_log_line_18
+        name: "BMS Log 18"
+      - id: bms_log_line_19
+        name: "BMS Log 19"
+      - id: bms_log_line_20
+        name: "BMS Log 20"
+      - id: bms_log_line_21
+        name: "BMS Log 21"
+      - id: bms_log_line_22
+        name: "BMS Log 22"
+      - id: bms_log_line_23
+        name: "BMS Log 23"
+      - id: bms_log_line_24
+        name: "BMS Log 24"
+      - id: bms_log_line_25
+        name: "BMS Log 25"
+      - id: bms_log_line_26
+        name: "BMS Log 26"
+      - id: bms_log_line_27
+        name: "BMS Log 27"
+      - id: bms_log_line_28
+        name: "BMS Log 28"
+      - id: bms_log_line_29
+        name: "BMS Log 29"
+      - id: bms_log_line_30
+        name: "BMS Log 30"
+      - id: bms_log_line_31
+        name: "BMS Log 31"
+      - id: bms_log_line_32
+        name: "BMS Log 32"
+      - id: bms_log_line_33
+        name: "BMS Log 33"
+      - id: bms_log_line_34
+        name: "BMS Log 34"
+      - id: bms_log_line_35
+        name: "BMS Log 35"
+      - id: bms_log_line_36
+        name: "BMS Log 36"
+      - id: bms_log_line_37
+        name: "BMS Log 37"
+      - id: bms_log_line_38
+        name: "BMS Log 38"
+      - id: bms_log_line_39
+        name: "BMS Log 39"
+      - id: bms_log_line_40
+        name: "BMS Log 40"
+      - id: bms_log_line_41
+        name: "BMS Log 41"
+      - id: bms_log_line_42
+        name: "BMS Log 42"
+      - id: bms_log_line_43
+        name: "BMS Log 43"
+      - id: bms_log_line_44
+        name: "BMS Log 44"
+      - id: bms_log_line_45
+        name: "BMS Log 45"
+      - id: bms_log_line_46
+        name: "BMS Log 46"
+      - id: bms_log_line_47
+        name: "BMS Log 47"
+      - id: bms_log_line_48
+        name: "BMS Log 48"
+      - id: bms_log_line_49
+        name: "BMS Log 49"
+      - id: bms_log_line_50
+        name: "BMS Log 50"
+
+    # Event Status Sensors
+    error_contactor_pos_stuck_open: { name: "Fatal: POS Stuck Open" }
+    error_contactor_pos_stuck_closed: { name: "Fatal: POS Stuck Closed" }
+    error_contactor_neg_stuck_open: { name: "Fatal: NEG Stuck Open" }
+    error_contactor_neg_stuck_closed: { name: "Fatal: NEG Stuck Closed" }
+    error_contactor_pre_stuck_open: { name: "Fatal: PRE Stuck Open" }
+    error_contactor_pre_stuck_closed: { name: "Fatal: PRE Stuck Closed" }
+    error_contactor_precharge_voltage_too_high: { name: "Critical: PRE Voltage High" }
+    error_contactor_precharge_current_too_high: { name: "Critical: PRE Current High" }
+    error_contactor_pos_unexpected_open: { name: "Critical: POS Unexpected Open" }
+    error_contactor_neg_unexpected_open: { name: "Critical: NEG Unexpected Open" }
+    error_contactor_closing_failed: { name: "Critical: Closing Failed" }
+    error_supply_voltage_stale: { name: "Warning: Supply Voltage Stale" }
+    error_battery_voltage_stale: { name: "Warning: Batt Voltage Stale" }
+    error_battery_temperature_stale: { name: "Warning: Batt Temp Stale" }
+    error_current_stale: { name: "Warning: Current Stale" }
+    error_cell_voltages_stale: { name: "Warning: Cell Voltages Stale" }
+    error_supply_voltage_3v3_low: { name: "Critical: 3V3 Low" }
+    error_supply_voltage_3v3_high: { name: "Critical: 3V3 High" }
+    error_supply_voltage_5v_low: { name: "Warning: 5V Low" }
+    error_supply_voltage_5v_high: { name: "Warning: 5V High" }
+    error_supply_voltage_12v_low: { name: "Warning: 12V Low" }
+    error_supply_voltage_12v_high: { name: "Warning: 12V High" }
+    error_supply_voltage_contactor_low: { name: "Critical: Ctr Supply Low" }
+    error_supply_voltage_contactor_very_low: { name: "Fatal: Ctr Supply Very Low" }
+    error_supply_voltage_contactor_high: { name: "Warning: Ctr Supply High" }
+    error_battery_voltage_high: { name: "Warning: Batt Voltage High" }
+    error_battery_voltage_very_high: { name: "Critical: Batt Voltage Very High" }
+    error_battery_voltage_low: { name: "Warning: Batt Voltage Low" }
+    error_battery_voltage_very_low: { name: "Critical: Batt Voltage Very Low" }
+    error_cell_voltage_high: { name: "Warning: Cell Voltage High" }
+    error_cell_voltage_very_high: { name: "Critical: Cell Voltage Very High" }
+    error_cell_voltage_low: { name: "Warning: Cell Voltage Low" }
+    error_cell_voltage_very_low: { name: "Critical: Cell Voltage Very Low" }
+    error_soft_charge_buffer_exceeded: { name: "Warning: Soft Charge Exceeded" }
+    error_overcurrent_charging: { name: "Critical: Overcurrent Charging" }
+    error_overcurrent_discharging: { name: "Critical: Overcurrent Discharging" }
+    error_battery_temperature_high: { name: "Warning: Batt Temp High" }
+    error_battery_temperature_very_high: { name: "Critical: Batt Temp Very High" }
+    error_battery_temperature_low: { name: "Warning: Batt Temp Low" }
+    error_battery_temperature_very_low: { name: "Critical: Batt Temp Very Low" }
+    error_voltage_mismatch: { name: "Critical: Voltage Mismatch" }
+    error_bmb_read_error: { name: "Critical: BMB Read Error" }
+    error_bmb_crc_mismatch: { name: "Critical: BMB CRC Mismatch" }
+    error_inverter_detected: { name: "Warning: Inverter Detected" }
+    error_estop_pressed: { name: "Fatal: E-Stop Pressed" }
+    error_boot_normal: { name: "Info: Boot Normal" }
+    error_boot_watchdog: { name: "Info: Boot Watchdog" }
+    error_loop_overrun: { name: "Warning: Loop Overrun" }
+    error_restarting: { name: "Info: Restarting" }
+
+  - platform: template
+    id: bms_system_state_text
+    name: "BMS System State Text"
+    lambda: |-
+      static const char* states[] = {"UNINIT", "INIT", "CALIB", "INACTIVE", "OPERATING", "FAULT"};
+      int val = (int)id(bms_system_state).state;
+      if (val >= 0 && val <= 5) return {states[val]};
+      return {"UNKNOWN"};
+    update_interval: 500ms
+
+  - platform: template
+    id: bms_contactor_state_text
+    name: "BMS Contactor State Text"
+    lambda: |-
+      static const char* states[] = {
+        "OPEN", "TST_PRE_CL", "TST_NEG_OP", "TST_NEG_CL", "TST_POS_OP", "TST_POS_CL",
+        "PRE_NEG", "PRECHARGING", "CLOSED", "CALIB", "CAL_CL_NEG", "CAL_PRE",
+        "CAL_CLOSED", "PRE_FAIL", "TST_FAIL"
+      };
+      int val = (int)id(bms_contactor_state).state;
+      if (val >= 0 && val <= 14) return {states[val]};
+      return {"UNKNOWN"};
+    update_interval: 500ms
+
+  - platform: template
+    id: bms_last_event_text
+    name: "BMS Last Event Text"
+    update_interval: 1s
+    lambda: |-
+      auto* bms = (esphome::hmi_bms::HMIBMS*) id(bms_hub);
+      int code = bms->get_last_event_code();
+      if (code == -1) return {"No Events"};
+      int level = bms->get_last_event_level();
+      const char* levels[] = {"", "[INFO]", "[WARN]", "[ERR!]", "[CRIT]"};
+      char buf[64];
+      sprintf(buf, "%s %d %s", levels[level % 5], code, bms->get_last_event_type_str());
+      return {buf};
+
+button:
+  - platform: template
+    name: "BMS Run"
+    id: btn_web_run
+    on_press:
+      - lambda: |-
+          id(bms_hub).send_system_request(1);
+
+  - platform: template
+    name: "BMS Stop"
+    id: btn_web_stop
+    on_press:
+      - lambda: |-
+          id(bms_hub).send_system_request(2);
+
+  - platform: template
+    name: "BMS Calibrate"
+    id: btn_web_calibrate
+    on_press:
+      - lambda: |-
+          id(bms_hub).send_system_request(3);
+
+switch:
+  - platform: hmi_bms
+    log_enable:
+      id: bms_log_enable
+      name: "BMS Log Enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+
+number:
+  - platform: hmi_bms
+    soc_scaling_min:
+      name: "BMS SOC Scaling Min"
+      mode: box
+    soc_scaling_max:
+      name: "BMS SOC Scaling Max"
+      mode: box
+    voltage_limit_offset_lower:
+      name: "BMS Voltage Limit Offset Lower"
+      mode: box
+    voltage_limit_offset_upper:
+      name: "BMS Voltage Limit Offset Upper"
+      mode: box
+    cell_voltage_working_min_mV:
+      name: "BMS Cell Voltage Working Min"
+      mode: box
+    cell_voltage_working_max_mV:
+      name: "BMS Cell Voltage Working Max"
+      mode: box
+    cell_voltage_soft_min_mV:
+      id: bms_cv_soft_min
+      name: "BMS Cell Voltage Soft Min"
+      mode: box
+    cell_voltage_soft_max_mV:
+      id: bms_cv_soft_max
+      name: "BMS Cell Voltage Soft Max"
+      mode: box
+    auto_balancing_period_ms:
+      id: bms_auto_bal_period
+      name: "BMS Auto Balancing Period"
+      mode: box
+    balancing_periods_per_mV:
+      id: bms_bal_periods_mv
+      name: "BMS Balancing Periods per mV"
+      mode: box
+    balance_min_offset_mV:
+      id: bms_bal_min_offset
+      name: "BMS Balance Min Offset"
+      mode: box
+    minimum_balancing_voltage_mV:
+      id: bms_min_bal_v
+      name: "BMS Minimum Balancing Voltage"
+      mode: box
+    max_charge_current:
+      id: bms_max_charge
+      name: "BMS Max Charge Current"
+      mode: box
+    max_discharge_current:
+      id: bms_max_discharge
+      name: "BMS Max Discharge Current"
+      mode: box
+
+  - platform: template
+    name: "BMS Log Update Rate"
+    id: bms_log_update_rate
+    unit_of_measurement: "s"
+    icon: mdi:timer-outline
+    min_value: 1
+    max_value: 1000
+    step: 1
+    initial_value: 2
+    restore_value: true
+    optimistic: true
+    mode: box
+    set_action:
+      - lambda: |-
+          id(bms_hub).set_log_update_interval((uint32_t)(x * 1000));

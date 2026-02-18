@@ -1,278 +1,110 @@
 esphome:
   name: waveshare-esp32-s3-lcd
   friendly_name: Waveshare ESP32-S3 LCD 5
+  min_version: 2025.10.0
 
 esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: esp-idf
-    version: recommended
     sdkconfig_options:
-      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
-      CONFIG_ESP32S3_DATA_CACHE_64KB: y
-      CONFIG_SPIRAM_MODE_QUAD: n
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESPTOOLPY_FLASHSIZE_8MB: "y"
+      CONFIG_FREERTOS_HZ: "1000"
+      CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
+      CONFIG_ESPTOOLPY_FLASHMODE_QIO: y
+      CONFIG_ESPTOOLPY_FLASHFREQ_80M: y
       CONFIG_SPIRAM_MODE_OCT: y
+      CONFIG_IDF_EXPERIMENTAL_FEATURES: y
       CONFIG_SPIRAM_SPEED_80M: y
-      CONFIG_SPIRAM_BOOT_INIT: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
       CONFIG_SPIRAM_USE_MALLOC: y
+      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
+      CONFIG_COMPILER_OPTIMIZATION_PERF: y
+    advanced:
+      loop_task_stack_size: 8704
 
-# Enable PSRAM
+# Modular Packages
+packages:
+  bms_core: !include bms_core.yaml
+  bms_ui: !include bms_ui_scripts.yaml
+  ui_layout: !include ui_800x480.yaml
+
 psram:
   mode: octal
   speed: 80MHz
 
-# Web server for easy access
 web_server:
   port: 80
   auth:
     username: !secret web_server_username
     password: !secret web_server_password
 
-captive_portal:
-
-# Wi-Fi and API
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   power_save_mode: none
-  reboot_timeout: 0s # without this will reboot after 15 minutes if not connected to wifi - Does not apply when in access point mode.
-  use_address: 10.60.12.73 # ip address to use to program the esp32-s3-touch-lcd-5 - only used if there are issues with auto discovery
   ap:
-    ssid: "S3XY LCD Fallback"
-    password: "12345678"
+    ssid: "BMS-LCD-5-Hotspot"
+  #use_address: 10.60.12.73
+
+captive_portal:
 
 api:
   encryption:
     key: !secret api_encryption_key
-  reboot_timeout: 0s # without this will reboot after 15 minutes if not connected to the api
 
 ota:
   - platform: esphome
     password: !secret ota_password
-#   on_begin:
-#      then:
-#        - lvgl.pause:
-#        - component.suspend: my_display # suspend these devices so the OTA can happen smoothly
-#        - component.suspend: bms_hub
-  - platform: web_server
-
-external_components:
-  - source:
-      type: local
-      path: components
-
-hmi_bms:
-  id: bms_hub
-  uart_id: uart_bus
-  update_interval: 1s
-  bypass_crc: false
-  baud_rate: 460800
-  dump_raw: false
-
-sensor:
-  - platform: hmi_bms
-    hmi_bms_id: bms_hub
-    soc:
-      name: "BMS SOC"
-      id: bms_soc
-      accuracy_decimals: 2
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_soc
-              text: !lambda 'return "SOC: " + str_sprintf("%.2f%%", x);'
-    current:
-      name: "BMS Current"
-      id: bms_current
-      accuracy_decimals: 3
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_current
-              text: !lambda 'return "Amps: " + str_sprintf("%.3fA", x);'
-    battery_voltage:
-      name: "BMS Battery Voltage"
-      id: bms_voltage
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_voltage
-              text: !lambda 'return "Pack: " + str_sprintf("%.2fV", x);'
-    output_voltage:
-      name: "BMS Output Voltage"
-      id: bms_output_voltage
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_output_voltage
-              text: !lambda 'return "Out: " + str_sprintf("%.2fV", x);'
-    temperature_min:
-      name: "BMS Temperature Min"
-    temperature_max:
-      name: "BMS Temperature Max"
-    cell_voltage_min:
-      name: "BMS Cell Voltage Min"
-    cell_voltage_max:
-      name: "BMS Cell Voltage Max"
-    cell_voltages:
-      - name: "Cell 001 Voltage"
-      - name: "Cell 002 Voltage"
-      - name: "Cell 003 Voltage"
-      - name: "Cell 004 Voltage"
-      - name: "Cell 005 Voltage"
-      - name: "Cell 006 Voltage"
-      - name: "Cell 007 Voltage"
-      - name: "Cell 008 Voltage"
-      - name: "Cell 009 Voltage"
-      - name: "Cell 010 Voltage"
-      - name: "Cell 011 Voltage"
-      - name: "Cell 012 Voltage"
-      - name: "Cell 013 Voltage"
-      - name: "Cell 014 Voltage"
-      - name: "Cell 015 Voltage"
-      - name: "Cell 016 Voltage"
-      - name: "Cell 017 Voltage"
-      - name: "Cell 018 Voltage"
-      - name: "Cell 019 Voltage"
-      - name: "Cell 020 Voltage"
-      - name: "Cell 021 Voltage"
-      - name: "Cell 022 Voltage"
-      - name: "Cell 023 Voltage"
-      - name: "Cell 024 Voltage"
-      - name: "Cell 025 Voltage"
-      - name: "Cell 026 Voltage"
-      - name: "Cell 027 Voltage"
-      - name: "Cell 028 Voltage"
-      - name: "Cell 029 Voltage"
-      - name: "Cell 030 Voltage"
-      - name: "Cell 031 Voltage"
-      - name: "Cell 032 Voltage"
-      - name: "Cell 033 Voltage"
-      - name: "Cell 034 Voltage"
-      - name: "Cell 035 Voltage"
-      - name: "Cell 036 Voltage"
-      - name: "Cell 037 Voltage"
-      - name: "Cell 038 Voltage"
-      - name: "Cell 039 Voltage"
-      - name: "Cell 040 Voltage"
-      - name: "Cell 041 Voltage"
-      - name: "Cell 042 Voltage"
-      - name: "Cell 043 Voltage"
-      - name: "Cell 044 Voltage"
-      - name: "Cell 045 Voltage"
-      - name: "Cell 046 Voltage"
-      - name: "Cell 047 Voltage"
-      - name: "Cell 048 Voltage"
-      - name: "Cell 049 Voltage"
-      - name: "Cell 050 Voltage"
-      - name: "Cell 051 Voltage"
-      - name: "Cell 052 Voltage"
-      - name: "Cell 053 Voltage"
-      - name: "Cell 054 Voltage"
-      - name: "Cell 055 Voltage"
-      - name: "Cell 056 Voltage"
-      - name: "Cell 057 Voltage"
-      - name: "Cell 058 Voltage"
-      - name: "Cell 059 Voltage"
-      - name: "Cell 060 Voltage"
-      - name: "Cell 061 Voltage"
-      - name: "Cell 062 Voltage"
-      - name: "Cell 063 Voltage"
-      - name: "Cell 064 Voltage"
-      - name: "Cell 065 Voltage"
-      - name: "Cell 066 Voltage"
-      - name: "Cell 067 Voltage"
-      - name: "Cell 068 Voltage"
-      - name: "Cell 069 Voltage"
-      - name: "Cell 070 Voltage"
-      - name: "Cell 071 Voltage"
-      - name: "Cell 072 Voltage"
-      - name: "Cell 073 Voltage"
-      - name: "Cell 074 Voltage"
-      - name: "Cell 075 Voltage"
-      - name: "Cell 076 Voltage"
-      - name: "Cell 077 Voltage"
-      - name: "Cell 078 Voltage"
-      - name: "Cell 079 Voltage"
-      - name: "Cell 080 Voltage"
-      - name: "Cell 081 Voltage"
-      - name: "Cell 082 Voltage"
-      - name: "Cell 083 Voltage"
-      - name: "Cell 084 Voltage"
-      - name: "Cell 085 Voltage"
-      - name: "Cell 086 Voltage"
-      - name: "Cell 087 Voltage"
-      - name: "Cell 088 Voltage"
-      - name: "Cell 089 Voltage"
-      - name: "Cell 090 Voltage"
-      - name: "Cell 091 Voltage"
-      - name: "Cell 092 Voltage"
-      - name: "Cell 093 Voltage"
-      - name: "Cell 094 Voltage"
-      - name: "Cell 095 Voltage"
-      - name: "Cell 096 Voltage"
-      - name: "Cell 097 Voltage"
-      - name: "Cell 098 Voltage"
-      - name: "Cell 099 Voltage"
-      - name: "Cell 100 Voltage"
-      - name: "Cell 101 Voltage"
-      - name: "Cell 102 Voltage"
-      - name: "Cell 103 Voltage"
-      - name: "Cell 104 Voltage"
-      - name: "Cell 105 Voltage"
-      - name: "Cell 106 Voltage"
-      - name: "Cell 107 Voltage"
-      - name: "Cell 108 Voltage"
+    on_begin:
+      then:
+        - light.turn_off: display_backlight
+        - lvgl.pause: {}
 
 logger:
-  baud_rate: 0
+  baud_rate: 0 # Serial used for BMS
   level: DEBUG
-  logs:
-    sensor: INFO
 
 uart:
   - id: uart_bus
-    tx_pin:
-      number: GPIO19
-      inverted: false
+    tx_pin: GPIO19
     rx_pin:
       number: GPIO20
-      inverted: false
       mode:
         input: true
         pullup: false
     baud_rate: 460800
-    data_bits: 8
-    parity: NONE
-    stop_bits: 1
     rx_buffer_size: 1024
-    # stop_bits: 2  <-- Try this if data is still garbled
 
 i2c:
-  sda: GPIO08
-  scl: GPIO09
-  scan: True
-  id: i2_bus_a
+  - id: bus_a
+    sda: GPIO08
+    scl: GPIO09
+    scan: true
 
 ch422g:
   - id: ch422g_hub
 
-switch:
+output:
   - platform: gpio
-    name: backlight_pin
-    restore_mode: ALWAYS_ON
+    id: lcdbacklight_output
     pin:
       ch422g: ch422g_hub
       number: 2
-      mode:
-        output: true
-      inverted: false
+
+light:
+  - platform: binary
+    output: lcdbacklight_output
+    id: display_backlight # ID used in on_boot
+    name: LCD Backlight
+    restore_mode: ALWAYS_ON
 
 touchscreen:
   - platform: gt911
-    address: 0x5D
     id: my_touchscreen
-    update_interval: 16ms
     interrupt_pin: 4
     reset_pin:
       ch422g: ch422g_hub
@@ -282,34 +114,31 @@ touchscreen:
 display:
   - platform: rpi_dpi_rgb
     id: my_display
+    color_order: RGB
     dimensions:
       width: 800
       height: 480
     data_pins:
-      # Blue: B3-B7
-      - GPIO14
-      - GPIO38
-      - GPIO18
-      - GPIO17
-      - GPIO10
-      # Green: G2-G7
-      - GPIO39
-      - GPIO0
-      - GPIO45
-      - GPIO48
-      - GPIO47
-      - GPIO21
-      # Red: R3-R7
-      - GPIO1
-      - GPIO2
-      - GPIO42
-      - GPIO41
-      - GPIO40
+      - GPIO14 # B3
+      - GPIO38 # B4
+      - GPIO18 # B5
+      - GPIO17 # B6
+      - GPIO10 # B7
+      - GPIO39 # G2
+      - GPIO0  # G3
+      - GPIO45 # G4
+      - GPIO48 # G5
+      - GPIO47 # G6
+      - GPIO21 # G7
+      - GPIO1  # R3
+      - GPIO2  # R4
+      - GPIO42 # R5
+      - GPIO41 # R6
+      - GPIO40 # R7
     reset_pin:
       ch422g: ch422g_hub
       number: 3
     pclk_pin: 7
-    pclk_inverted: false
     hsync_pin:
       number: 46
       ignore_strapping_warning: true
@@ -317,8 +146,7 @@ display:
       number: 3
       ignore_strapping_warning: true
     de_pin: GPIO5
-    color_order: RGB
-    pclk_frequency: 16MHz
+    pclk_frequency: 14MHz
     hsync_pulse_width: 48
     hsync_back_porch: 40
     hsync_front_porch: 40
@@ -326,53 +154,7 @@ display:
     vsync_back_porch: 29
     vsync_front_porch: 13
 
-
-# LVGL Configuration
-font:
-  - file: "gfonts://Roboto"
-    id: font_roboto
-    size: 40
-  - file: "gfonts://Roboto"
-    id: font_roboto_80
-    size: 80
-
-lvgl:
-  id: my_lvgl
-  displays:
-    - my_display
-  touchscreens:
-    - my_touchscreen
-  bg_color: 0x000000
-  disp_bg_color: 0x000000
-  buffer_size: 20%
-  pages:
-    - id: main_page
-      widgets:
-        - label:
-            id: label_soc
-            text: "SOC: --%"
-            align: CENTER
-            y: -160
-            text_font: font_roboto
-            text_color: 0x00FF00
-        - label:
-            id: label_voltage
-            text: "Pack: --V"
-            align: CENTER
-            y: -60
-            text_font: font_roboto_80
-            text_color: 0x00BFFF
-        - label:
-            id: label_current
-            text: "Amps: --A"
-            align: CENTER
-            y: 40
-            text_font: font_roboto_80
-            text_color: 0xFFA500
-        - label:
-            id: label_output_voltage
-            text: "Out: --V"
-            align: CENTER
-            y: 140
-            text_font: font_roboto_80
-            text_color: 0x1E90FF
+sensor:
+  - platform: uptime
+    id: uptime_sec
+    update_interval: 5s

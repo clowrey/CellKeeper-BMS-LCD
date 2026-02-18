@@ -1,12 +1,16 @@
 esphome:
-  name: waveshare-esp32-s3-lcd-7
-  friendly_name: Waveshare ESP32-S3 LCD 7
-  min_version: "2025.4.2"
+  name: ck0 # This is the name of the node. It should always be unique in your ESPHome network. May only contain lowercase characters, digits and hyphens. It also gets prefixed to entity names.
+  # if you change this name after already adding to HA - to make entities names all update - you need to delete the device in HA and then re-add it > device settigns 3 dots > recreate entitiy IDs - it should keep data
+  friendly_name: CellKeeper0 # This name is sent to the frontend and used by Home Assistant as the integration and device name. It also gets prefixed to entity names when needed.
+  min_version: 2025.11.0 
+  project:
+    name: "CellKeeper.ESP32-S3-Touch-LCD-7"
+    version: "1.0b" 
   platformio_options:
-    build_flags: "-DBOARD_HAS_PSRAM"
-    board_build.arduino.memory_type: qio_opi
+    build_unflags: -Werror=all
     board_build.flash_mode: dio
-    board_upload.maximum_ram_size: 524288
+    build_flags: 
+      - -DBOARD_HAS_PSRAM
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -16,232 +20,84 @@ esp32:
   framework:
     type: esp-idf
     sdkconfig_options:
-      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: y
-      CONFIG_ESP32S3_DATA_CACHE_64KB: y
-      CONFIG_ESPTOOLPY_FLASHSIZE_8MB: y
-      CONFIG_ESPTOOLPY_FLASHMODE_DIO: y
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESPTOOLPY_FLASHSIZE_8MB: "y"
+      CONFIG_FREERTOS_HZ: "1000"
+      CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240: y
+      CONFIG_ESPTOOLPY_FLASHMODE_QIO: y
       CONFIG_ESPTOOLPY_FLASHFREQ_80M: y
+#      CONFIG_ESPTOOLPY_FLASHFREQ_120M: y
       CONFIG_SPIRAM_MODE_OCT: y
+      CONFIG_IDF_EXPERIMENTAL_FEATURES: y
       CONFIG_SPIRAM_SPEED_80M: y
-      CONFIG_SPIRAM_BOOT_INIT: y
+#      CONFIG_SPIRAM_SPEED_120M: y
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
       CONFIG_SPIRAM_USE_MALLOC: y
-      CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM: "10"
-      CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM: "32"
-      CONFIG_ESP32_WIFI_STATIC_TX_BUFFER_NUM: "16"
-      CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM: "32"
-      CONFIG_ESP32_WIFI_TX_BA_WIN: "6"
-      CONFIG_ESP32_WIFI_RX_BA_WIN: "6"
-      CONFIG_ESP32_WIFI_MGMT_SBUF_NUM: "32"
+      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
+      CONFIG_COMPILER_OPTIMIZATION_PERF: y
+      #CONFIG_COMPILER_OPTIMIZATION_DEBUG: y
+    advanced:
+      loop_task_stack_size: 8704 #pr#10564
+#      enable_idf_experimental_features: False
+#      compiler_optimization: SIZE
 
-# Enable PSRAM
+# Modular Packages
+packages:
+  bms_core: !include bms_core.yaml
+  bms_ui: !include bms_ui_scripts.yaml
+  ui_layout: !include ui_800x480.yaml
+
 psram:
   mode: octal
   speed: 80MHz
 
-# Web server for easy access
 web_server:
   port: 80
   auth:
     username: !secret web_server_username
     password: !secret web_server_password
 
-captive_portal:
+switch:
+  - platform: template
+    name: "Web Log Toggle"
+    id: web_log_toggle
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
 
-# Wi-Fi and API
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   power_save_mode: none
-  reboot_timeout: 0s
-  #use_address: 10.60.12.73
+  use_address: 10.60.11.225
   ap:
-    ssid: "S3XY LCD 7 Fallback"
-    password: "12345678"
+    ssid: "BMS-LCD-7-Hotspot"
+
+captive_portal:
 
 api:
   encryption:
     key: !secret api_encryption_key
-  reboot_timeout: 0s
 
 ota:
   - platform: esphome
     password: !secret ota_password
-  - platform: web_server
-
-external_components:
-  - source:
-      type: local
-      path: components
-
-hmi_bms:
-  id: bms_hub
-  uart_id: uart_bus
-  update_interval: 1s
-  bypass_crc: false
-  baud_rate: 460800
-  dump_raw: false
-
-sensor:
-  - platform: hmi_bms
-    hmi_bms_id: bms_hub
-    soc:
-      name: "BMS SOC"
-      id: bms_soc
-      accuracy_decimals: 2
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_soc
-              text: !lambda 'return "SOC: " + str_sprintf("%.2f%%", x);'
-    current:
-      name: "BMS Current"
-      id: bms_current
-      accuracy_decimals: 3
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_current
-              text: !lambda 'return "Amps: " + str_sprintf("%.3fA", x);'
-    battery_voltage:
-      name: "BMS Battery Voltage"
-      id: bms_voltage
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_voltage
-              text: !lambda 'return "Pack: " + str_sprintf("%.2fV", x);'
-    output_voltage:
-      name: "BMS Output Voltage"
-      id: bms_output_voltage
-      on_value:
-        then:
-          - lvgl.label.update:
-              id: label_output_voltage
-              text: !lambda 'return "Out: " + str_sprintf("%.2fV", x);'
-    temperature_min:
-      name: "BMS Temperature Min"
-    temperature_max:
-      name: "BMS Temperature Max"
-    cell_voltage_min:
-      name: "BMS Cell Voltage Min"
-    cell_voltage_max:
-      name: "BMS Cell Voltage Max"
-    cell_voltages:
-      - name: "Cell 001 Voltage"
-      - name: "Cell 002 Voltage"
-      - name: "Cell 003 Voltage"
-      - name: "Cell 004 Voltage"
-      - name: "Cell 005 Voltage"
-      - name: "Cell 006 Voltage"
-      - name: "Cell 007 Voltage"
-      - name: "Cell 008 Voltage"
-      - name: "Cell 009 Voltage"
-      - name: "Cell 010 Voltage"
-      - name: "Cell 011 Voltage"
-      - name: "Cell 012 Voltage"
-      - name: "Cell 013 Voltage"
-      - name: "Cell 014 Voltage"
-      - name: "Cell 015 Voltage"
-      - name: "Cell 016 Voltage"
-      - name: "Cell 017 Voltage"
-      - name: "Cell 018 Voltage"
-      - name: "Cell 019 Voltage"
-      - name: "Cell 020 Voltage"
-      - name: "Cell 021 Voltage"
-      - name: "Cell 022 Voltage"
-      - name: "Cell 023 Voltage"
-      - name: "Cell 024 Voltage"
-      - name: "Cell 025 Voltage"
-      - name: "Cell 026 Voltage"
-      - name: "Cell 027 Voltage"
-      - name: "Cell 028 Voltage"
-      - name: "Cell 029 Voltage"
-      - name: "Cell 030 Voltage"
-      - name: "Cell 031 Voltage"
-      - name: "Cell 032 Voltage"
-      - name: "Cell 033 Voltage"
-      - name: "Cell 034 Voltage"
-      - name: "Cell 035 Voltage"
-      - name: "Cell 036 Voltage"
-      - name: "Cell 037 Voltage"
-      - name: "Cell 038 Voltage"
-      - name: "Cell 039 Voltage"
-      - name: "Cell 040 Voltage"
-      - name: "Cell 041 Voltage"
-      - name: "Cell 042 Voltage"
-      - name: "Cell 043 Voltage"
-      - name: "Cell 044 Voltage"
-      - name: "Cell 045 Voltage"
-      - name: "Cell 046 Voltage"
-      - name: "Cell 047 Voltage"
-      - name: "Cell 048 Voltage"
-      - name: "Cell 049 Voltage"
-      - name: "Cell 050 Voltage"
-      - name: "Cell 051 Voltage"
-      - name: "Cell 052 Voltage"
-      - name: "Cell 053 Voltage"
-      - name: "Cell 054 Voltage"
-      - name: "Cell 055 Voltage"
-      - name: "Cell 056 Voltage"
-      - name: "Cell 057 Voltage"
-      - name: "Cell 058 Voltage"
-      - name: "Cell 059 Voltage"
-      - name: "Cell 060 Voltage"
-      - name: "Cell 061 Voltage"
-      - name: "Cell 062 Voltage"
-      - name: "Cell 063 Voltage"
-      - name: "Cell 064 Voltage"
-      - name: "Cell 065 Voltage"
-      - name: "Cell 066 Voltage"
-      - name: "Cell 067 Voltage"
-      - name: "Cell 068 Voltage"
-      - name: "Cell 069 Voltage"
-      - name: "Cell 070 Voltage"
-      - name: "Cell 071 Voltage"
-      - name: "Cell 072 Voltage"
-      - name: "Cell 073 Voltage"
-      - name: "Cell 074 Voltage"
-      - name: "Cell 075 Voltage"
-      - name: "Cell 076 Voltage"
-      - name: "Cell 077 Voltage"
-      - name: "Cell 078 Voltage"
-      - name: "Cell 079 Voltage"
-      - name: "Cell 080 Voltage"
-      - name: "Cell 081 Voltage"
-      - name: "Cell 082 Voltage"
-      - name: "Cell 083 Voltage"
-      - name: "Cell 084 Voltage"
-      - name: "Cell 085 Voltage"
-      - name: "Cell 086 Voltage"
-      - name: "Cell 087 Voltage"
-      - name: "Cell 088 Voltage"
-      - name: "Cell 089 Voltage"
-      - name: "Cell 090 Voltage"
-      - name: "Cell 091 Voltage"
-      - name: "Cell 092 Voltage"
-      - name: "Cell 093 Voltage"
-      - name: "Cell 094 Voltage"
-      - name: "Cell 095 Voltage"
-      - name: "Cell 096 Voltage"
-      - name: "Cell 097 Voltage"
-      - name: "Cell 098 Voltage"
-      - name: "Cell 099 Voltage"
-      - name: "Cell 100 Voltage"
-      - name: "Cell 101 Voltage"
-      - name: "Cell 102 Voltage"
-      - name: "Cell 103 Voltage"
-      - name: "Cell 104 Voltage"
-      - name: "Cell 105 Voltage"
-      - name: "Cell 106 Voltage"
-      - name: "Cell 107 Voltage"
-      - name: "Cell 108 Voltage"
+    on_begin:
+      then:
+        - light.turn_off: display_backlight
+        - lvgl.pause: {}
 
 logger:
   baud_rate: 115200
-  hardware_uart: UART0 #this board has a USB-serial bridge IC on its UART port
+  hardware_uart: UART0
   level: DEBUG
   logs:
-    sensor: INFO
+    web_server: ERROR # Default to only errors for the web server to save bandwidth
+    hmi_bms: INFO
+    sensor: WARN
+    text_sensor: WARN
+    number: WARN
 
 uart:
   - id: uart_bus
@@ -255,10 +111,10 @@ uart:
     rx_buffer_size: 1024
 
 i2c:
-  sda: GPIO08
-  scl: GPIO09
-  scan: True
-  id: bus_a
+  - id: bus_a
+    sda: GPIO08
+    scl: GPIO09
+    scan: true
 
 ch422g:
   - id: ch422g_hub
@@ -269,67 +125,29 @@ output:
     pin:
       ch422g: ch422g_hub
       number: 2
-      mode:
-        output: true
-      inverted: false
 
 light:
   - platform: binary
     output: lcdbacklight_output
-    id: lcdbacklight
+    id: display_backlight
     name: LCD Backlight
-    icon: mdi:wall-sconce-flat-outline
-    disabled_by_default: true
     restore_mode: ALWAYS_ON
-    on_turn_off:
-      - script.execute: start_antiburn
-    on_turn_on:
-      - script.execute: stop_antiburn
 
-script:
-  - id: start_antiburn
-    then:
-      - delay: 5min
-      - logger.log: Starting automatic antiburn.
-      - switch.turn_on: switch_antiburn
-  - id: stop_antiburn
-    then:
-      - script.stop: start_antiburn
-      - switch.turn_off: switch_antiburn
+touchscreen:
+  - platform: gt911
+    id: my_touchscreen
+    interrupt_pin: GPIO4
+    reset_pin:
+      ch422g: ch422g_hub
+      number: 1
+      mode: OUTPUT
 
-switch:
-  - platform: template
-    name: Antiburn
-    id: switch_antiburn
-    icon: mdi:television-shimmer
-    optimistic: true
-    entity_category: "config"
-    disabled_by_default: true
-    turn_on_action:
-      - logger.log: "Starting Antiburn"
-      - if:
-          condition: lvgl.is_paused
-          then:
-            - lvgl.resume:
-            - lvgl.widget.redraw:
-      - lvgl.pause:
-          show_snow: true
-    turn_off_action:
-      - logger.log: "Stopping Antiburn"
-      - if:
-          condition: lvgl.is_paused
-          then:
-            - lvgl.resume:
-            - lvgl.widget.redraw:
-
-### Display
 display:
   - platform: rpi_dpi_rgb
-    id: waveshare_display
-    update_interval: never
-    auto_clear_enabled: false
+    id: my_display
     color_order: RGB
-    pclk_frequency: 16MHz
+    auto_clear_enabled: false
+    pclk_frequency: 14MHz
     dimensions:
       width: 800
       height: 480
@@ -353,82 +171,19 @@ display:
     vsync_front_porch: 16
     vsync_pulse_width: 4
     data_pins:
-      red:
-        - 1         #r3
-        - 2         #r4
-        - 42        #r5
-        - 41        #r6
-        - 40        #r7
-      blue:
-        - 14        #b3
-        - 38        #b4
-        - 18        #b5
-        - 17        #b6
-        - 10        #b7
-      green:
-        - 39        #g2
-        - 0         #g3
-        - 45        #g4
-        - 48        #g5
-        - 47        #g6
-        - 21        #g7
-
-### Touchscreen
-touchscreen:
-  - platform: gt911
-    id: waveshare_touch
-    interrupt_pin: GPIO4
-    reset_pin:
-      ch422g: ch422g_hub
-      number: 1
-      mode: OUTPUT
-
-# LVGL Configuration
-font:
-  - file: "gfonts://Roboto"
-    id: font_roboto
-    size: 40
-  - file: "gfonts://Roboto"
-    id: font_roboto_80
-    size: 80
-
-lvgl:
-  id: my_lvgl
-  displays:
-    - waveshare_display
-  touchscreens:
-    - waveshare_touch
-  bg_color: 0x000000
-  disp_bg_color: 0x000000
-  buffer_size: 20%
-  pages:
-    - id: main_page
-      widgets:
-        - label:
-            id: label_soc
-            text: "SOC: --%"
-            align: CENTER
-            y: -160
-            text_font: font_roboto
-            text_color: 0x00FF00
-        - label:
-            id: label_voltage
-            text: "Pack: --V"
-            align: CENTER
-            y: -60
-            text_font: font_roboto_80
-            text_color: 0x00BFFF
-        - label:
-            id: label_current
-            text: "Amps: --A"
-            align: CENTER
-            y: 40
-            text_font: font_roboto_80
-            text_color: 0xFFA500
-        - label:
-            id: label_output_voltage
-            text: "Out: --V"
-            align: CENTER
-            y: 140
-            text_font: font_roboto_80
-            text_color: 0x1E90FF
+      - GPIO14 # B3
+      - GPIO38 # B4
+      - GPIO18 # B5
+      - GPIO17 # B6
+      - GPIO10 # B7
+      - GPIO39 # G2
+      - GPIO0  # G3
+      - GPIO45 # G4
+      - GPIO48 # G5
+      - GPIO47 # G6
+      - GPIO21 # G7
+      - GPIO1  # R3
+      - GPIO2  # R4
+      - GPIO42 # R5
+      - GPIO41 # R6
+      - GPIO40 # R7

@@ -1,6 +1,8 @@
 #include "hmi_bms.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <map>
+#include <vector>
 
 namespace esphome {
 namespace hmi_bms {
@@ -8,7 +10,7 @@ namespace hmi_bms {
 static const char *const TAG = "hmi_bms";
 
 static const char* EVENT_LEVELS[] = {
-    "NONE",
+    "INACTIVE",
     "INFO",
     "WARNING",
     "CRITICAL",
@@ -16,54 +18,58 @@ static const char* EVENT_LEVELS[] = {
 };
 
 static const char* EVENT_TYPES[] = {
-    "POS STUCK OPEN",
-    "POS STUCK CLOSED",
-    "NEG STUCK OPEN",
-    "NEG STUCK CLOSED",
-    "PRE STUCK OPEN",
-    "PRE STUCK CLOSED",
-    "TEST FAIL POS",
-    "TEST FAIL NEG",
-    "TEST FAIL PRE",
-    "PRECHARGE FAIL",
-    "CURRENT STALE",
-    "SUPPLY STALE",
-    "BMB STALE",
-    "TEMP STALE",
-    "SOC STALE",
-    "BMB MISSING",
-    "BMB FAULT",
-    "BMB VOLTAGE MISMATCH",
-    "BMB TEMP MISMATCH",
-    "BMB SPI ERROR",
-    "BMB UART ERROR",
-    "BMB CAN ERROR",
-    "CELL VOLTAGE LOW",
-    "CELL VOLTAGE HIGH",
-    "CELL VOLTAGE CRITICAL LOW",
-    "CELL VOLTAGE CRITICAL HIGH",
-    "CELL VOLTAGE DELTA",
-    "PACK VOLTAGE LOW",
-    "PACK VOLTAGE HIGH",
-    "PACK VOLTAGE CRITICAL LOW",
-    "PACK VOLTAGE CRITICAL HIGH",
-    "CURRENT HIGH CHARGE",
-    "CURRENT HIGH DISCHARGE",
-    "CURRENT CRITICAL HIGH CHARGE",
-    "CURRENT CRITICAL HIGH DISCHARGE",
-    "TEMP LOW CHARGE",
-    "TEMP LOW DISCHARGE",
-    "TEMP HIGH CHARGE",
-    "TEMP HIGH DISCHARGE",
-    "TEMP CRITICAL LOW",
-    "TEMP CRITICAL HIGH",
-    "ESTOP PRESSED",
-    "BOOT NORMAL",
-    "BOOT WATCHDOG",
-    "BOOT BROWNOUT",
-    "BOOT SOFTWARE",
-    "BOOT OTHER"
+    "CONTACTOR_POS_STUCK_OPEN",
+    "CONTACTOR_POS_STUCK_CLOSED",
+    "CONTACTOR_NEG_STUCK_OPEN",
+    "CONTACTOR_NEG_STUCK_CLOSED",
+    "CONTACTOR_PRE_STUCK_OPEN",
+    "CONTACTOR_PRE_STUCK_CLOSED",
+    "CONTACTOR_PRECHARGE_VOLTAGE_TOO_HIGH",
+    "CONTACTOR_PRECHARGE_CURRENT_TOO_HIGH",
+    "CONTACTOR_POS_UNEXPECTED_OPEN",
+    "CONTACTOR_NEG_UNEXPECTED_OPEN",
+    "CONTACTOR_CLOSING_FAILED",
+    "SUPPLY_VOLTAGE_STALE",
+    "BATTERY_VOLTAGE_STALE",
+    "BATTERY_TEMPERATURE_STALE",
+    "CURRENT_STALE",
+    "CELL_VOLTAGES_STALE",
+    "SUPPLY_VOLTAGE_3V3_LOW",
+    "SUPPLY_VOLTAGE_3V3_HIGH",
+    "SUPPLY_VOLTAGE_5V_LOW",
+    "SUPPLY_VOLTAGE_5V_HIGH",
+    "SUPPLY_VOLTAGE_12V_LOW",
+    "SUPPLY_VOLTAGE_12V_HIGH",
+    "SUPPLY_VOLTAGE_CONTACTOR_LOW",
+    "SUPPLY_VOLTAGE_CONTACTOR_VERY_LOW",
+    "SUPPLY_VOLTAGE_CONTACTOR_HIGH",
+    "BATTERY_VOLTAGE_HIGH",
+    "BATTERY_VOLTAGE_VERY_HIGH",
+    "BATTERY_VOLTAGE_LOW",
+    "BATTERY_VOLTAGE_VERY_LOW",
+    "CELL_VOLTAGE_HIGH",
+    "CELL_VOLTAGE_VERY_HIGH",
+    "CELL_VOLTAGE_LOW",
+    "CELL_VOLTAGE_VERY_LOW",
+    "SOFT_CHARGE_BUFFER_EXCEEDED",
+    "OVERCURRENT_CHARGING",
+    "OVERCURRENT_DISCHARGING",
+    "BATTERY_TEMPERATURE_HIGH",
+    "BATTERY_TEMPERATURE_VERY_HIGH",
+    "BATTERY_TEMPERATURE_LOW",
+    "BATTERY_TEMPERATURE_VERY_LOW",
+    "VOLTAGE_MISMATCH",
+    "BMB_READ_ERROR",
+    "BMB_CRC_MISMATCH",
+    "INVERTER_DETECTED",
+    "ESTOP_PRESSED",
+    "BOOT_NORMAL",
+    "BOOT_WATCHDOG",
+    "LOOP_OVERRUN",
+    "RESTARTING"
 };
+
+#define MAX_EVENT_TYPE_ID 69
 
 void HMIBMS::setup() {
 }
@@ -75,10 +81,9 @@ void HMIBMS::update() {
   }
 
   this->update_count_++;
-  bool slow_poll = (this->update_count_ % 10 == 0);
+  uint8_t slot = this->update_count_ % 10;
 
-  bool use_cv_cmd = !this->cell_voltage_sensors_.empty() && slow_poll;
-
+  // 1. Prepare Register Read Payload (Combines Slow and Fast polls)
   std::vector<uint8_t> payload;
   payload.push_back(HMI_MSG_READ_REGISTERS);
   payload.push_back(this->address_);
@@ -88,10 +93,11 @@ void HMIBMS::update() {
     payload.push_back(reg >> 8);   // Hi byte
   };
 
-  // 1Hz Slow Poll Registers
-  if (slow_poll) {
+  // Add Slow Poll Registers only on Tick 0
+  if (slot == 0) {
+    // Always poll these basic sensors if configured
     if (this->millis_sensor_) add_reg(HMI_REG_MILLIS);
-    if (this->serial_sensor_) add_reg(HMI_REG_SERIAL);
+    if (this->serial_text_sensor_) add_reg(HMI_REG_SERIAL);
     if (this->system_request_sensor_) add_reg(HMI_REG_SYSTEM_REQUEST);
     if (this->soc_sensor_) add_reg(HMI_REG_SOC);
     if (this->charge_raw_sensor_) add_reg(HMI_REG_CHARGE);
@@ -102,7 +108,6 @@ void HMIBMS::update() {
     if (this->system_sm_sensor_) add_reg(HMI_REG_SYSTEM_STATE);
     if (this->soc_voltage_based_sensor_) add_reg(HMI_REG_SOC_VOLTAGE_BASED);
     if (this->soc_basic_count_sensor_) add_reg(HMI_REG_SOC_BASIC_COUNT);
-    if (this->soc_ekf_sensor_) add_reg(HMI_REG_SOC_EKF);
     if (this->capacity_mC_sensor_) add_reg(HMI_REG_CAPACITY);
     if (this->supply_voltage_3V3_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_3V3);
     if (this->supply_voltage_5V_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_5V);
@@ -110,26 +115,39 @@ void HMIBMS::update() {
     if (this->supply_voltage_contactor_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_CTR);
     if (this->pos_contactor_voltage_mV_sensor_) add_reg(HMI_REG_POS_CONTACTOR_VOLTAGE);
     if (this->neg_contactor_voltage_mV_sensor_) add_reg(HMI_REG_NEG_CONTACTOR_VOLTAGE);
-    
-    // Module Temperatures (0x200 - 0x207) - always poll these (8 * 7 bytes = 56 bytes)
-    for (uint16_t i = 0; i < this->module_temperature_sensors_.size() && i < 8; i++) {
-      add_reg(HMI_REG_MODULE_TEMPS_START + i);
-    }
+    if (this->cell_voltage_working_min_number_) add_reg(HMI_REG_CELL_VOLTAGE_WORKING_MIN);
+    if (this->cell_voltage_working_max_number_) add_reg(HMI_REG_CELL_VOLTAGE_WORKING_MAX);
+    if (this->soc_scaling_min_number_) add_reg(HMI_REG_SOC_SCALING_MIN);
+    if (this->soc_scaling_max_number_) add_reg(HMI_REG_SOC_SCALING_MAX);
+    if (this->voltage_limit_offset_lower_number_) add_reg(HMI_REG_VOLTAGE_LIMIT_OFFSET_LOWER);
+    if (this->voltage_limit_offset_upper_number_) add_reg(HMI_REG_VOLTAGE_LIMIT_OFFSET_UPPER);
+    if (this->cell_voltage_soft_min_number_) add_reg(HMI_REG_CELL_VOLTAGE_SOFT_MIN);
+    if (this->cell_voltage_soft_max_number_) add_reg(HMI_REG_CELL_VOLTAGE_SOFT_MAX);
+    if (this->auto_balancing_period_ms_number_) add_reg(HMI_REG_AUTO_BALANCING_PERIOD_MS);
+    if (this->balancing_periods_per_mV_number_) add_reg(HMI_REG_BALANCING_PERIODS_PER_MV);
+    if (this->balance_min_offset_mV_number_) add_reg(HMI_REG_BALANCE_MIN_OFFSET_MV);
+    if (this->minimum_balancing_voltage_mV_number_) add_reg(HMI_REG_MINIMUM_BALANCING_VOLTAGE_MV);
+    if (this->max_charge_current_number_) add_reg(HMI_REG_MAX_CHARGE_CURRENT);
+    if (this->max_discharge_current_number_) add_reg(HMI_REG_MAX_DISCHARGE_CURRENT);
+    if (this->adc_sample_count_sensor_) add_reg(HMI_REG_ADC_SAMPLE_COUNT);
+    if (this->loop_frequency_hz_sensor_) add_reg(HMI_REG_LOOP_FREQUENCY_HZ);
 
-    // Raw Temperatures (0x208 - 0x238) - Poll in chunks of 8 to stay under 256-byte limit
-    // 8 registers * 7 bytes/reg = 56 bytes per batch.
-    uint16_t num_raw = this->raw_temperature_sensors_.size();
-    if (num_raw > 0) {
-      if (num_raw > 48) num_raw = 48;
-      for (uint16_t i = 0; i < 8; i++) {
-        uint16_t idx = (this->temp_poll_index_ + i) % num_raw;
-        add_reg(HMI_REG_RAW_TEMPS_START + idx);
+    // Add configured module temperature sensors
+    for (size_t i = 0; i < this->module_temperature_sensors_.size(); i++) {
+      if (this->module_temperature_sensors_[i] != nullptr) {
+        add_reg(HMI_REG_MODULE_TEMPS_START + i);
       }
-      this->temp_poll_index_ = (this->temp_poll_index_ + 8) % num_raw;
+    }
+    
+    // Add configured raw temperature sensors
+    for (size_t i = 0; i < this->raw_temperature_sensors_.size(); i++) {
+      if (this->raw_temperature_sensors_[i] != nullptr) {
+        add_reg(HMI_REG_RAW_TEMPS_START + i);
+      }
     }
   }
 
-  // 10Hz Fast Poll Registers (V, A, Contactor State)
+  // Add Fast Poll Registers (Every Tick)
   if (this->current_mA_sensor_) add_reg(HMI_REG_CURRENT);
   if (this->battery_voltage_mV_sensor_) add_reg(HMI_REG_BATTERY_VOLTAGE);
   if (this->output_voltage_mV_sensor_) add_reg(HMI_REG_OUTPUT_VOLTAGE);
@@ -139,20 +157,56 @@ void HMIBMS::update() {
     this->send_packet_(payload);
   }
 
-  if (use_cv_cmd) {
+  // 2. Read Cell Voltages (Tick 2)
+  if (slot == 2 && !this->cell_voltage_sensors_.empty()) {
+    ESP_LOGV(TAG, "Polling cell voltages (slot 2). Sensors: %zu", this->cell_voltage_sensors_.size());
     std::vector<uint8_t> cv_payload;
     cv_payload.push_back(HMI_MSG_READ_CELL_VOLTAGES);
     cv_payload.push_back(this->address_);
     this->send_packet_(cv_payload);
   }
 
-  if (slow_poll) {
+  // 3. Read Events (Tick 5)
+  if (slot == 5) {
     std::vector<uint8_t> event_payload;
     event_payload.push_back(HMI_MSG_READ_EVENTS);
     event_payload.push_back(this->address_);
     event_payload.push_back(0x00); // Start index Lo
     event_payload.push_back(0x00); // Start index Hi
     this->send_packet_(event_payload);
+  }
+
+  // 4. Read Balancing Times (Tick 7)
+  if (slot == 7 && this->balancing_cells_text_sensor_) {
+    std::vector<uint8_t> bal_payload;
+    bal_payload.push_back(HMI_MSG_READ_BALANCING_TIMES);
+    bal_payload.push_back(this->address_);
+    this->send_packet_(bal_payload);
+  }
+
+  // 5. Read Log (Tick 9) - Poll for new log messages
+  //    Send 2 requests back-to-back to double throughput (each response carries up to 256 bytes,
+  //    so 2 requests can drain up to 512 bytes per round-trip instead of 256).
+  //    Flow control uses log_busy_ which clears when a non-full response arrives (<240 bytes),
+  //    so this also works if the BMS sends multiple responses per single request.
+  if (slot == 9 && this->log_enabled_ && (this->log_text_sensor_ || !this->log_line_sensors_.empty())) {
+    if (this->log_busy_) {
+      if (millis() - this->last_log_request_time_ > 2000) {
+        ESP_LOGW(TAG, "BMS Log Request Timed Out");
+        this->log_busy_ = false;
+      }
+    }
+
+    if (!this->log_busy_) {
+      ESP_LOGI(TAG, "Sending 2x BMS Log Requests");
+      std::vector<uint8_t> log_payload;
+      log_payload.push_back(HMI_MSG_READ_LOG);
+      log_payload.push_back(this->address_);
+      this->send_packet_(log_payload);
+      this->send_packet_(log_payload);
+      this->log_busy_ = true;
+      this->last_log_request_time_ = millis();
+    }
   }
 }
 
@@ -196,6 +250,60 @@ void HMIBMS::send_system_request(uint8_t request) {
   }
 }
 
+void HMIBMS::write_register(uint16_t reg_id, uint8_t type, float value, float scale) {
+  if (this->address_ == 0) {
+    ESP_LOGW(TAG, "Cannot write register: No device address assigned");
+    return;
+  }
+  
+  // Convert float value to raw integer based on scale
+  // e.g. value=3.5V, scale=0.001 (mV). Raw = 3.5 / 0.001 = 3500.
+  // Wait, my `publish` logic uses `val * scale` or `val / 100`.
+  // `scale` here should probably be the multiplier applied TO raw to get float.
+  // So raw = value / scale.
+  
+  int64_t raw_val = 0;
+  if (scale != 0.0f) {
+    raw_val = (int64_t)(value / scale);
+  } else {
+    raw_val = (int64_t)value;
+  }
+
+  ESP_LOGI(TAG, "Writing register %u: %f (raw: %lld)", reg_id, value, raw_val);
+
+  std::vector<uint8_t> payload;
+  payload.push_back(HMI_MSG_WRITE_REGISTERS);
+  payload.push_back(this->address_);
+  payload.push_back(reg_id & 0xFF);
+  payload.push_back(reg_id >> 8);
+  payload.push_back(type);
+
+  if (type == HMI_TYPE_UINT8 || type == HMI_TYPE_INT8) {
+    payload.push_back((uint8_t)raw_val);
+  } else if (type == HMI_TYPE_UINT16 || type == HMI_TYPE_INT16) {
+    payload.push_back((uint8_t)(raw_val & 0xFF));
+    payload.push_back((uint8_t)((raw_val >> 8) & 0xFF));
+  } else if (type == HMI_TYPE_UINT32 || type == HMI_TYPE_INT32) {
+    payload.push_back((uint8_t)(raw_val & 0xFF));
+    payload.push_back((uint8_t)((raw_val >> 8) & 0xFF));
+    payload.push_back((uint8_t)((raw_val >> 16) & 0xFF));
+    payload.push_back((uint8_t)((raw_val >> 24) & 0xFF));
+  }
+  
+  this->send_packet_(payload);
+}
+
+void HMIBMSNumber::control(float value) {
+  this->parent_->write_register(this->reg_id_, this->type_, value, this->scale_);
+}
+
+void HMIBMSLogSwitch::write_state(bool state) {
+  this->publish_state(state);
+  if (this->parent_) {
+    this->parent_->set_log_enabled(state);
+  }
+}
+
 void HMIBMS::loop() {
   // 1. Process all sensor updates from the queue
   while (!this->publish_queue_.empty()) {
@@ -206,11 +314,37 @@ void HMIBMS::loop() {
     }
   }
 
+  // 1b. Process one log message from the queue every 50ms to pace updates for Home Assistant
+  if (this->log_enabled_ && this->log_text_sensor_ && !this->log_publish_queue_.empty()) {
+    uint32_t now = millis();
+    if (now - this->last_log_publish_time_ >= 50) {
+      std::string line = this->log_publish_queue_.front();
+      this->log_publish_queue_.pop_front();
+      this->log_text_sensor_->publish_state(line);
+      this->last_log_publish_time_ = now;
+    }
+  }
+
+  // 1c. Publish buffered log line snapshot every 2 seconds, only changed lines
+  if (this->log_enabled_ && this->log_line_snapshot_dirty_ && !this->log_line_sensors_.empty()) {
+    uint32_t now = millis();
+    if (now - this->last_log_line_publish_time_ >= this->log_update_interval_ms_) {
+      for (size_t i = 0; i < this->log_line_sensors_.size() && i < this->log_line_snapshot_.size(); i++) {
+        if (this->log_line_snapshot_[i] != this->log_line_sensors_[i]->state) {
+          this->log_line_sensors_[i]->publish_state(this->log_line_snapshot_[i]);
+        }
+      }
+      this->log_line_snapshot_dirty_ = false;
+      this->last_log_line_publish_time_ = now;
+    }
+  }
+
   static std::vector<uint8_t> dump_buffer;
   uint32_t bytes_read = 0;
+  uint8_t packets_handled = 0;
   
-  // 2. Limit number of bytes read per loop to avoid UART saturation
-  while (this->available() && bytes_read < 128) {
+  // 2. Read UART data - high limit to keep up with 460800 baud log stream
+  while (this->available() && bytes_read < 2048 && packets_handled < 10) {
     uint8_t byte;
     this->read_byte(&byte);
     bytes_read++;
@@ -254,14 +388,14 @@ void HMIBMS::loop() {
           }
           this->handle_packet_(this->rx_buffer_.data() + 2, payload_len);
           this->rx_buffer_.clear();
-          // Stop processing more bytes this loop to give the system air
-          return;
+          packets_handled++;
         } else {
           // Try Big Endian CRC or alternate check
           received_crc = (this->rx_buffer_[payload_len + 2] << 8) | this->rx_buffer_[payload_len + 3];
           if (received_crc == computed_crc) {
              this->handle_packet_(this->rx_buffer_.data() + 2, payload_len);
              this->rx_buffer_.clear();
+             packets_handled++;
           } else {
              ESP_LOGW(TAG, "CRC mismatch: Type=0x%02X LenField=0x%02X Calc=0x%04X Msg=0x%04X", 
                       this->rx_buffer_[2], payload_len_minus_1, computed_crc, received_crc);
@@ -296,10 +430,17 @@ void HMIBMS::handle_packet_(const uint8_t *payload, size_t length) {
         this->handle_read_registers_response_(payload + offset, length - offset);
         return; // Assume variable length takes rest of packet for now
       case HMI_MSG_READ_CELL_VOLTAGES_RESPONSE:
+        ESP_LOGD(TAG, "Received Cell Voltages Response (msg_type=0x85)");
         this->handle_read_cell_voltages_response_(payload + offset, length - offset);
         return;
       case HMI_MSG_READ_EVENTS_RESPONSE:
         this->handle_read_events_response_(payload + offset, length - offset);
+        return;
+      case HMI_MSG_READ_BALANCING_TIMES_RESPONSE:
+        this->handle_read_balancing_times_response_(payload + offset, length - offset);
+        return;
+      case HMI_MSG_READ_LOG_RESPONSE:
+        this->handle_read_log_response_(payload + offset, length - offset);
         return;
       case HMI_MSG_ANNOUNCE_DEVICE:
         if (offset + 11 <= length) {
@@ -381,16 +522,18 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       uint64_t val = (uint64_t)v[0] | ((uint64_t)v[1] << 8) | ((uint64_t)v[2] << 16) | ((uint64_t)v[3] << 24) |
                      ((uint64_t)v[4] << 32) | ((uint64_t)v[5] << 40) | ((uint64_t)v[6] << 48) | ((uint64_t)v[7] << 56);
       this->publish_queue_.push_back({this->millis_sensor_, (float)val});
-    } else if (reg_id == HMI_REG_SERIAL && this->serial_sensor_ != nullptr) {
+    } else if (reg_id == HMI_REG_SERIAL && this->serial_text_sensor_ != nullptr) {
       uint64_t val = (uint64_t)v[0] | ((uint64_t)v[1] << 8) | ((uint64_t)v[2] << 16) | ((uint64_t)v[3] << 24) |
                      ((uint64_t)v[4] << 32) | ((uint64_t)v[5] << 40) | ((uint64_t)v[6] << 48) | ((uint64_t)v[7] << 56);
-      this->publish_queue_.push_back({this->serial_sensor_, (float)val});
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%llu", val);
+      this->serial_text_sensor_->publish_state(buf);
     } else if (reg_id == HMI_REG_SOC && this->soc_sensor_ != nullptr) {
       uint32_t val = (reg_type == HMI_TYPE_UINT16) ? (v[0] | (v[1] << 8)) : ((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->soc_sensor_, val / 100.0f});
+      this->publish_queue_.push_back({this->soc_sensor_, (float)val / 100.0f});
     } else if (reg_id == HMI_REG_CURRENT && this->current_mA_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->current_mA_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->current_mA_sensor_, (float)val});
     } else if (reg_id == HMI_REG_CHARGE && this->charge_raw_sensor_ != nullptr) {
       int64_t val;
       if (reg_type == HMI_TYPE_INT64) {
@@ -402,31 +545,31 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       this->publish_queue_.push_back({this->charge_raw_sensor_, (float)(val / 3600000.0f)}); // Convert mC to Ah
     } else if (reg_id == HMI_REG_BATTERY_VOLTAGE && this->battery_voltage_mV_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->battery_voltage_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->battery_voltage_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_OUTPUT_VOLTAGE && this->output_voltage_mV_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->output_voltage_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->output_voltage_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_POS_CONTACTOR_VOLTAGE && this->pos_contactor_voltage_mV_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->pos_contactor_voltage_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->pos_contactor_voltage_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_NEG_CONTACTOR_VOLTAGE && this->neg_contactor_voltage_mV_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->neg_contactor_voltage_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->neg_contactor_voltage_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_TEMPERATURE_MIN) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      t_min = val / 10.0f;
+      t_min = (float)val;
       if (this->temperature_min_dC_sensor_) this->publish_queue_.push_back({this->temperature_min_dC_sensor_, t_min});
     } else if (reg_id == HMI_REG_TEMPERATURE_MAX) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      t_max = val / 10.0f;
+      t_max = (float)val;
       if (this->temperature_max_dC_sensor_) this->publish_queue_.push_back({this->temperature_max_dC_sensor_, t_max});
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_MIN) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      v_min = val / 1000.0f;
+      v_min = (float)val;
       if (this->cell_voltage_min_mV_sensor_) this->publish_queue_.push_back({this->cell_voltage_min_mV_sensor_, v_min});
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_MAX) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      v_max = val / 1000.0f;
+      v_max = (float)val;
       if (this->cell_voltage_max_mV_sensor_) this->publish_queue_.push_back({this->cell_voltage_max_mV_sensor_, v_max});
     } else if (reg_id == HMI_REG_SYSTEM_REQUEST && this->system_request_sensor_ != nullptr) {
       this->publish_queue_.push_back({this->system_request_sensor_, (float)v[0]});
@@ -436,39 +579,84 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       this->publish_queue_.push_back({this->contactor_sm_sensor_, (float)v[0]});
     } else if (reg_id == HMI_REG_SOC_VOLTAGE_BASED && this->soc_voltage_based_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->soc_voltage_based_sensor_, val / 100.0f});
+      this->publish_queue_.push_back({this->soc_voltage_based_sensor_, (float)val / 100.0f});
     } else if (reg_id == HMI_REG_SOC_BASIC_COUNT && this->soc_basic_count_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->soc_basic_count_sensor_, val / 100.0f});
-    } else if (reg_id == HMI_REG_SOC_EKF && this->soc_ekf_sensor_ != nullptr) {
-      uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->soc_ekf_sensor_, val / 100.0f});
+      this->publish_queue_.push_back({this->soc_basic_count_sensor_, (float)val / 100.0f});
     } else if (reg_id == HMI_REG_CAPACITY && this->capacity_mC_sensor_ != nullptr) {
       uint32_t val = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
-      this->publish_queue_.push_back({this->capacity_mC_sensor_, (float)(val / 3600000.0f)}); // Convert mC to Ah
+      this->publish_queue_.push_back({this->capacity_mC_sensor_, (float)val / 3600000.0f}); // Convert mC to Ah
     } else if (reg_id == HMI_REG_SUPPLY_VOLTAGE_3V3 && this->supply_voltage_3V3_mV_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->supply_voltage_3V3_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->supply_voltage_3V3_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_SUPPLY_VOLTAGE_5V && this->supply_voltage_5V_mV_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->supply_voltage_5V_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->supply_voltage_5V_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_SUPPLY_VOLTAGE_12V && this->supply_voltage_12V_mV_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->supply_voltage_12V_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->supply_voltage_12V_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_SUPPLY_VOLTAGE_CTR && this->supply_voltage_contactor_mV_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->publish_queue_.push_back({this->supply_voltage_contactor_mV_sensor_, val / 1000.0f});
+      this->publish_queue_.push_back({this->supply_voltage_contactor_mV_sensor_, (float)val});
+    } else if (reg_id == HMI_REG_CELL_VOLTAGE_WORKING_MIN && this->cell_voltage_working_min_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->cell_voltage_working_min_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_CELL_VOLTAGE_WORKING_MAX && this->cell_voltage_working_max_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->cell_voltage_working_max_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_SOC_SCALING_MIN && this->soc_scaling_min_number_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->soc_scaling_min_number_->publish_state((float)val * 0.01f);
+    } else if (reg_id == HMI_REG_SOC_SCALING_MAX && this->soc_scaling_max_number_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->soc_scaling_max_number_->publish_state((float)val * 0.01f);
+    } else if (reg_id == HMI_REG_VOLTAGE_LIMIT_OFFSET_LOWER && this->voltage_limit_offset_lower_number_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->voltage_limit_offset_lower_number_->publish_state((float)val * 0.1f);
+    } else if (reg_id == HMI_REG_VOLTAGE_LIMIT_OFFSET_UPPER && this->voltage_limit_offset_upper_number_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->voltage_limit_offset_upper_number_->publish_state((float)val * 0.1f);
+    } else if (reg_id == HMI_REG_CELL_VOLTAGE_SOFT_MIN && this->cell_voltage_soft_min_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->cell_voltage_soft_min_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_CELL_VOLTAGE_SOFT_MAX && this->cell_voltage_soft_max_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->cell_voltage_soft_max_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_AUTO_BALANCING_PERIOD_MS && this->auto_balancing_period_ms_number_ != nullptr) {
+      uint32_t val = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+      this->auto_balancing_period_ms_number_->publish_state((float)val);
+    } else if (reg_id == HMI_REG_BALANCING_PERIODS_PER_MV && this->balancing_periods_per_mV_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->balancing_periods_per_mV_number_->publish_state((float)val);
+    } else if (reg_id == HMI_REG_BALANCE_MIN_OFFSET_MV && this->balance_min_offset_mV_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->balance_min_offset_mV_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_MINIMUM_BALANCING_VOLTAGE_MV && this->minimum_balancing_voltage_mV_number_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->minimum_balancing_voltage_mV_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_MAX_CHARGE_CURRENT && this->max_charge_current_number_ != nullptr) {
+      int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
+      this->max_charge_current_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_MAX_DISCHARGE_CURRENT && this->max_discharge_current_number_ != nullptr) {
+      int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
+      this->max_discharge_current_number_->publish_state((float)val * 0.001f);
+    } else if (reg_id == HMI_REG_ADC_SAMPLE_COUNT && this->adc_sample_count_sensor_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->publish_queue_.push_back({this->adc_sample_count_sensor_, (float)val});
+    } else if (reg_id == HMI_REG_LOOP_FREQUENCY_HZ && this->loop_frequency_hz_sensor_ != nullptr) {
+      uint16_t val = v[0] | (v[1] << 8);
+      this->publish_queue_.push_back({this->loop_frequency_hz_sensor_, (float)val});
     } else if (reg_id >= HMI_REG_MODULE_TEMPS_START && reg_id <= HMI_REG_MODULE_TEMPS_END) {
       uint16_t idx = reg_id - HMI_REG_MODULE_TEMPS_START;
       if (idx < this->module_temperature_sensors_.size() && this->module_temperature_sensors_[idx] != nullptr) {
         int16_t val = (int16_t)(v[0] | (v[1] << 8));
-        this->publish_queue_.push_back({this->module_temperature_sensors_[idx], val / 10.0f});
+        this->publish_queue_.push_back({this->module_temperature_sensors_[idx], (float)val / 10.0f});
       }
     } else if (reg_id >= HMI_REG_RAW_TEMPS_START && reg_id <= HMI_REG_RAW_TEMPS_END) {
       uint16_t idx = reg_id - HMI_REG_RAW_TEMPS_START;
       if (idx < this->raw_temperature_sensors_.size() && this->raw_temperature_sensors_[idx] != nullptr) {
         int16_t val = (int16_t)(v[0] | (v[1] << 8));
-        this->publish_queue_.push_back({this->raw_temperature_sensors_[idx], val / 10.0f});
+        this->publish_queue_.push_back({this->raw_temperature_sensors_[idx], (float)val / 10.0f});
       }
     }
     offset += val_size;
@@ -476,15 +664,17 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
 
   // Calculate and publish deltas using cached values or existing state
   if (this->temperature_delta_sensor_) {
-    float min_val = std::isnan(t_min) ? (this->temperature_min_dC_sensor_ ? this->temperature_min_dC_sensor_->state : NAN) : t_min;
-    float max_val = std::isnan(t_max) ? (this->temperature_max_dC_sensor_ ? this->temperature_max_dC_sensor_->state : NAN) : t_max;
+    // Sensors have multiply: 0.1 filter, so state is in C. Convert back to dC for calculation.
+    float min_val = std::isnan(t_min) ? (this->temperature_min_dC_sensor_ ? this->temperature_min_dC_sensor_->state * 10.0f : NAN) : t_min;
+    float max_val = std::isnan(t_max) ? (this->temperature_max_dC_sensor_ ? this->temperature_max_dC_sensor_->state * 10.0f : NAN) : t_max;
     if (!std::isnan(min_val) && !std::isnan(max_val)) {
       this->publish_queue_.push_back({this->temperature_delta_sensor_, max_val - min_val});
     }
   }
   if (this->cell_voltage_delta_sensor_) {
-    float min_val = std::isnan(v_min) ? (this->cell_voltage_min_mV_sensor_ ? this->cell_voltage_min_mV_sensor_->state : NAN) : v_min;
-    float max_val = std::isnan(v_max) ? (this->cell_voltage_max_mV_sensor_ ? this->cell_voltage_max_mV_sensor_->state : NAN) : v_max;
+    // Sensors have multiply: 0.001 filter, so state is in V. Convert back to mV for calculation.
+    float min_val = std::isnan(v_min) ? (this->cell_voltage_min_mV_sensor_ ? this->cell_voltage_min_mV_sensor_->state * 1000.0f : NAN) : v_min;
+    float max_val = std::isnan(v_max) ? (this->cell_voltage_max_mV_sensor_ ? this->cell_voltage_max_mV_sensor_->state * 1000.0f : NAN) : v_max;
     if (!std::isnan(min_val) && !std::isnan(max_val)) {
       this->publish_queue_.push_back({this->cell_voltage_delta_sensor_, max_val - min_val});
     }
@@ -492,10 +682,22 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
 }
 
 void HMIBMS::handle_read_cell_voltages_response_(const uint8_t *data, size_t length) {
-  if (length < 3) return;
+  if (length < 3) {
+    ESP_LOGW(TAG, "Cell voltages response too short: %zu", length);
+    return;
+  }
   uint8_t address = data[1];
   uint8_t num_cells = data[2];
   
+  ESP_LOGD(TAG, "Parsing cell voltages: Addr=0x%02X NumCells=%u Len=%zu", address, num_cells, length);
+  if (length > 3) {
+     // Log first few bytes of payload data for debugging
+     char hex_buf[64];
+     size_t dump_len = std::min(length - 3, (size_t)16);
+     for(size_t i=0; i<dump_len; i++) snprintf(hex_buf + i*3, 4, "%02X ", data[3+i]);
+     ESP_LOGD(TAG, "CV Payload start: %s", hex_buf);
+  }
+
   size_t offset = 3;
   int16_t last_cell_voltage = 0;
   uint16_t cells_found = 0;
@@ -539,6 +741,162 @@ void HMIBMS::handle_read_cell_voltages_response_(const uint8_t *data, size_t len
   ESP_LOGD(TAG, "Read %u cell voltages from 0x%02X (queued)", cells_found, address);
 }
 
+void HMIBMS::handle_read_balancing_times_response_(const uint8_t *data, size_t length) {
+  if (length < 3) return;
+  uint8_t address = data[1];
+  uint8_t num_cells = data[2];
+  
+  size_t offset = 3;
+  int16_t last_time = 0;
+  std::string active_cells = "";
+  
+  for (int i = 0; i < num_cells && offset < length; i++) {
+    int16_t time_val;
+    if (data[offset] & 0x80) {
+      // Absolute value (2 bytes, big-endian)
+      if (offset + 1 >= length) break;
+      uint16_t val = (((uint16_t)data[offset] & 0x7F) << 8) | data[offset + 1];
+      // Sign extend 15-bit to 16-bit
+      if (val & 0x4000) {
+        time_val = (int16_t)(val | 0x8000);
+      } else {
+        time_val = (int16_t)val;
+      }
+      offset += 2;
+    } else {
+      // Delta value (1 byte, signed 7-bit)
+      uint8_t val = data[offset] & 0x7F;
+      int8_t delta;
+      if (val & 0x40) {
+        delta = (int8_t)(val | 0x80);
+      } else {
+        delta = (int8_t)val;
+      }
+      time_val = last_time + delta;
+      offset += 1;
+    }
+    
+    last_time = time_val;
+
+    if (time_val > 0) {
+      if (!active_cells.empty()) {
+        active_cells += ", ";
+      }
+      active_cells += std::to_string(i + 1);
+    }
+  }
+
+  if (active_cells.empty()) {
+    active_cells = "None";
+  }
+
+  ESP_LOGD(TAG, "Balancing cells: %s", active_cells.c_str());
+  if (this->balancing_cells_text_sensor_) {
+    this->balancing_cells_text_sensor_->publish_state(active_cells);
+  }
+}
+
+void HMIBMS::handle_read_log_response_(const uint8_t *data, size_t length) {
+  if (length < 2) {
+    ESP_LOGW(TAG, "Log response too short: %zu", length);
+    this->log_busy_ = false;
+    return;
+  }
+  
+  // data[0] is Msg Type, data[1] is Address
+  size_t log_len = length - 2;
+  ESP_LOGD(TAG, "Received log chunk len=%zu", log_len);
+  
+  if (log_len == 0) {
+    // Empty response means BMS has no more data
+    this->log_busy_ = false;
+    return;
+  }
+  
+  // Append received chunk to our buffer
+  this->log_buffer_.append((const char*)(data + 2), log_len);
+  ESP_LOGV(TAG, "Log buffer size: %zu", this->log_buffer_.size());
+  
+  // Process complete lines (terminated by \n)
+  size_t pos;
+  while ((pos = this->log_buffer_.find('\n')) != std::string::npos) {
+    std::string line = this->log_buffer_.substr(0, pos);
+    
+    // Trim trailing \r
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+
+    // Strip ANSI escape sequences (ESC[...letter) sent by BMS terminal output
+    {
+      std::string clean;
+      clean.reserve(line.size());
+      for (size_t i = 0; i < line.size(); i++) {
+        if (line[i] == '\x1b' && i + 1 < line.size() && line[i + 1] == '[') {
+          i += 2;
+          while (i < line.size() && !isalpha((unsigned char)line[i])) i++;
+        } else if ((unsigned char)line[i] >= 0x20) {
+          clean += line[i];
+        }
+      }
+      line = clean;
+    }
+    
+    if (!line.empty()) {
+      ESP_LOGI(TAG, "[BMS LOG] %s", line.c_str());
+      if (this->log_text_sensor_) {
+        this->log_publish_queue_.push_back(line);
+        if (this->log_publish_queue_.size() > 100) {
+           this->log_publish_queue_.pop_front();
+        }
+      }
+      // Sync log line sensors: when we see a line starting with the sync prefix, reset to line 0
+      if (!this->log_sync_prefix_.empty() &&
+          line.size() >= this->log_sync_prefix_.size() &&
+          line.compare(0, this->log_sync_prefix_.size(), this->log_sync_prefix_) == 0) {
+        // New cycle detected: snapshot whatever we have (short 15-cell or long 96-cell logs both valid)
+        if (!this->log_line_pending_.empty() && this->log_line_index_ > 0) {
+          this->log_line_snapshot_ = this->log_line_pending_;
+          this->log_line_snapshot_dirty_ = true;
+        }
+        this->log_line_index_ = 0;
+        this->log_line_pending_.clear();
+        this->log_line_pending_.resize(this->log_line_sensors_.size());
+      }
+      // Buffer the line for next snapshot
+      if (this->log_line_index_ < this->log_line_pending_.size()) {
+        this->log_line_pending_[this->log_line_index_] = line;
+      }
+      this->log_line_index_++;
+    }
+    
+    // Remove processed line from buffer (including the \n at pos)
+    this->log_buffer_.erase(0, pos + 1);
+  }
+
+  // Safety cap on buffer size to prevent memory leak if no newline ever comes
+  if (this->log_buffer_.size() > 1024) {
+    ESP_LOGW(TAG, "Log buffer overflow, clearing...");
+    this->log_buffer_.clear();
+  }
+
+  // Flow control: a non-full response (<240 bytes) means the BMS log buffer is drained.
+  // A full response means more data is likely waiting, so send 2 more requests.
+  // This works whether the BMS sends 1 response per request or multiple.
+  if (log_len >= 240) {
+    ESP_LOGV(TAG, "Log response full (%zu bytes), sending 2 more requests", log_len);
+    std::vector<uint8_t> log_payload;
+    log_payload.push_back(HMI_MSG_READ_LOG);
+    log_payload.push_back(this->address_);
+    this->send_packet_(log_payload);
+    this->send_packet_(log_payload);
+    this->last_log_request_time_ = millis();
+  } else {
+    // Non-full response: BMS is done sending, allow next tick to start a new cycle
+    this->log_busy_ = false;
+  }
+}
+
 void HMIBMS::handle_read_events_response_(const uint8_t *data, size_t length) {
   if (length < 6) return;
   uint8_t address = data[1];
@@ -550,13 +908,36 @@ void HMIBMS::handle_read_events_response_(const uint8_t *data, size_t length) {
   size_t offset = 6;
   uint16_t highest_level = 0;
   uint16_t latest_event_type = 0xFFFF;
+  int latest_event_level = 0;
+  std::string latest_event_type_str = "UNKNOWN";
   std::string history = "";
+  std::map<int, std::vector<std::string>> categorized_events;
   uint32_t now_millis = millis();
+  
+  // Track which error sensors we've updated in this loop
+  std::vector<bool> error_updated(this->error_sensors_.size(), false);
 
   for (uint16_t i = 0; i < count && offset + 22 <= length; i++) {
     uint16_t type = data[offset] | (data[offset + 1] << 8);
     uint16_t level = data[offset + 2] | (data[offset + 3] << 8);
     uint16_t event_count = data[offset + 4] | (data[offset + 5] << 8);
+    
+    const char* type_str = (type < sizeof(EVENT_TYPES)/sizeof(EVENT_TYPES[0])) ? EVENT_TYPES[type] : "UNKNOWN";
+    const char* level_str = (level < sizeof(EVENT_LEVELS)/sizeof(EVENT_LEVELS[0])) ? EVENT_LEVELS[level] : "??";
+
+    char state_buf[32];
+    snprintf(state_buf, sizeof(state_buf), "%s (%u)", level_str, event_count);
+
+    if (type < this->error_sensors_.size() && this->error_sensors_[type] != nullptr) {
+      this->error_sensors_[type]->publish_state(state_buf);
+      error_updated[type] = true;
+    }
+
+    if (i == 0) {
+      latest_event_type = type;
+      latest_event_level = level;
+      latest_event_type_str = type_str;
+    }
     
     uint64_t timestamp = 0;
     for (int j = 0; j < 8; j++) timestamp |= (uint64_t)data[offset + 6 + j] << (j * 8);
@@ -567,18 +948,56 @@ void HMIBMS::handle_read_events_response_(const uint8_t *data, size_t length) {
     if (level > highest_level) {
       highest_level = level;
     }
-    latest_event_type = type;
 
-    // Build history string
-    char buf[128];
-    const char* type_str = (type < sizeof(EVENT_TYPES)/sizeof(EVENT_TYPES[0])) ? EVENT_TYPES[type] : "UNKNOWN";
-    const char* level_str = (level < sizeof(EVENT_LEVELS)/sizeof(EVENT_LEVELS[0])) ? EVENT_LEVELS[level] : "??";
-    
-    // We don't have absolute wall time, so we show relative to BMS uptime or just raw ID
-    snprintf(buf, sizeof(buf), "[%s] %u %s (x%u)\n", level_str, type, type_str, event_count);
-    history += buf;
+    char event_str[64];
+    snprintf(event_str, sizeof(event_str), "%s (%u)", type_str, event_count);
+    categorized_events[level].push_back(event_str);
 
     offset += 22;
+  }
+
+  // Update any error sensors that were NOT in the received list to "NONE" (Inactive)
+  // NOTE: This assumes we receive a full list of active events. If pagination is used and we only get page 1,
+  // this might incorrectly clear events on page 2. However, based on typical packet size and event count, 
+  // we likely fit most active errors in one packet.
+  for (size_t i = 0; i < this->error_sensors_.size(); i++) {
+    if (this->error_sensors_[i] != nullptr && !error_updated[i]) {
+      // Only update if it wasn't already "NONE" to save bandwidth? 
+      // TextSensor handles deduplication, so just publish.
+      this->error_sensors_[i]->publish_state("INACTIVE");
+    }
+  }
+
+  // Construct history string based on categories
+  // Mapping: 0->Historic, 1->Info, 2->Warning, 3->Critical, 4->Fatal
+  static const char* CAT_NAMES[] = {"Historic", "Info", "Warning", "Critical", "Fatal"};
+  
+  for (int lvl = 0; lvl < 5; lvl++) {
+    if (!categorized_events[lvl].empty()) {
+      history += CAT_NAMES[lvl];
+      history += ": ";
+      for (size_t k = 0; k < categorized_events[lvl].size(); k++) {
+        if (k > 0) history += ", ";
+        history += categorized_events[lvl][k];
+      }
+      history += "\n";
+    } else if (lvl > 0) { // For Info/Warn/Crit/Fatal show "none" if empty, but maybe skip Historic if empty?
+       // User asked for:
+       // Historic: ...
+       // Info: ...
+       // Warning: ...
+       // Critical: none
+       // Fatal: none
+       // Let's follow that pattern strictly.
+       history += CAT_NAMES[lvl];
+       history += ": none\n";
+    }
+  }
+  // Historic special handling: if empty, maybe user still wants "Historic: none" or just skip? 
+  // User example had content. I'll include "Historic: none" if empty for consistency.
+  if (categorized_events[0].empty()) {
+      std::string temp = "Historic: none\n" + history;
+      history = temp;
   }
 
   if (this->highest_event_level_sensor_) {
@@ -587,6 +1006,11 @@ void HMIBMS::handle_read_events_response_(const uint8_t *data, size_t length) {
   if (this->last_event_sensor_ && latest_event_type != 0xFFFF) {
     this->publish_queue_.push_back({this->last_event_sensor_, (float)latest_event_type});
   }
+  
+  this->last_event_code_ = (latest_event_type == 0xFFFF) ? -1 : latest_event_type;
+  this->last_event_level_ = latest_event_level;
+  this->last_event_type_str_ = latest_event_type_str;
+
   if (this->event_history_text_sensor_ && !history.empty()) {
     this->event_history_text_sensor_->publish_state(history);
   }
