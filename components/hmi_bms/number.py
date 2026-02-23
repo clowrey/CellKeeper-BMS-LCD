@@ -24,6 +24,7 @@ CONF_AUTO_BALANCING_PERIOD_MS = "auto_balancing_period_ms"
 CONF_BALANCING_PERIODS_PER_MV = "balancing_periods_per_mV"
 CONF_BALANCE_MIN_OFFSET_MV = "balance_min_offset_mV"
 CONF_MINIMUM_BALANCING_VOLTAGE_MV = "minimum_balancing_voltage_mV"
+CONF_SOC_SET = "soc_set"
 CONF_SOC_SCALING_MIN = "soc_scaling_min"
 CONF_SOC_SCALING_MAX = "soc_scaling_max"
 CONF_MAX_CHARGE_CURRENT = "max_charge_current"
@@ -47,28 +48,34 @@ def number_schema(unit=None, icon=None, accuracy=None, device_class=None, min_va
     if icon is not None:
         args["icon"] = icon
         
-    return number.number_schema(**args).extend({
+    schema = number.number_schema(**args).extend({
         cv.Optional("min_value", default=min_val): cv.float_,
         cv.Optional("max_value", default=max_val): cv.float_,
         cv.Optional("step", default=step): cv.float_,
     })
+    if accuracy is not None:
+        schema = schema.extend({
+            cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy): cv.int_,
+        })
+    return schema
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(HMIBMS),
-    cv.Optional(CONF_VOLTAGE_LIMIT_OFFSET_UPPER): number_schema(unit="V", accuracy=1, device_class="voltage", min_val=0, max_val=5, step=0.1),
-    cv.Optional(CONF_VOLTAGE_LIMIT_OFFSET_LOWER): number_schema(unit="V", accuracy=1, device_class="voltage", min_val=0, max_val=5, step=0.1),
-    cv.Optional(CONF_CELL_VOLTAGE_WORKING_MIN_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=5, step=0.001),
-    cv.Optional(CONF_CELL_VOLTAGE_WORKING_MAX_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=5, step=0.001),
-    cv.Optional(CONF_CELL_VOLTAGE_SOFT_MIN_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=5, step=0.001),
-    cv.Optional(CONF_CELL_VOLTAGE_SOFT_MAX_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=5, step=0.001),
+    cv.Optional(CONF_VOLTAGE_LIMIT_OFFSET_UPPER): number_schema(unit="dV", accuracy=0, device_class="voltage", min_val=-5000, max_val=5000, step=1),
+    cv.Optional(CONF_VOLTAGE_LIMIT_OFFSET_LOWER): number_schema(unit="dV", accuracy=0, device_class="voltage", min_val=-5000, max_val=5000, step=1),
+    cv.Optional(CONF_CELL_VOLTAGE_WORKING_MIN_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=5000, step=1),
+    cv.Optional(CONF_CELL_VOLTAGE_WORKING_MAX_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=5000, step=1),
+    cv.Optional(CONF_CELL_VOLTAGE_SOFT_MIN_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=5000, step=1),
+    cv.Optional(CONF_CELL_VOLTAGE_SOFT_MAX_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=5000, step=1),
     cv.Optional(CONF_AUTO_BALANCING_PERIOD_MS): number_schema(unit="ms", accuracy=0, min_val=0, max_val=3600000, step=1000),
     cv.Optional(CONF_BALANCING_PERIODS_PER_MV): number_schema(accuracy=0, min_val=0, max_val=1000, step=1),
-    cv.Optional(CONF_BALANCE_MIN_OFFSET_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=1, step=0.001),
-    cv.Optional(CONF_MINIMUM_BALANCING_VOLTAGE_MV): number_schema(unit="V", accuracy=3, device_class="voltage", min_val=0, max_val=5, step=0.001),
-    cv.Optional(CONF_SOC_SCALING_MIN): number_schema(unit="%", accuracy=2, min_val=0, max_val=100, step=0.01),
-    cv.Optional(CONF_SOC_SCALING_MAX): number_schema(unit="%", accuracy=2, min_val=0, max_val=100, step=0.01),
-    cv.Optional(CONF_MAX_CHARGE_CURRENT): number_schema(unit="A", accuracy=3, device_class="current", min_val=0, max_val=500, step=0.001),
-    cv.Optional(CONF_MAX_DISCHARGE_CURRENT): number_schema(unit="A", accuracy=3, device_class="current", min_val=0, max_val=500, step=0.001),
+    cv.Optional(CONF_BALANCE_MIN_OFFSET_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=1000, step=1),
+    cv.Optional(CONF_MINIMUM_BALANCING_VOLTAGE_MV): number_schema(unit="mV", accuracy=0, device_class="voltage", min_val=0, max_val=5000, step=1),
+    cv.Optional(CONF_SOC_SET): number_schema(unit="%", accuracy=0, min_val=0, max_val=100, step=1),
+    cv.Optional(CONF_SOC_SCALING_MIN): number_schema(unit="%", accuracy=0, min_val=0, max_val=100, step=1),
+    cv.Optional(CONF_SOC_SCALING_MAX): number_schema(unit="%", accuracy=0, min_val=0, max_val=100, step=1),
+    cv.Optional(CONF_MAX_CHARGE_CURRENT): number_schema(unit="mA", accuracy=0, device_class="current", min_val=0, max_val=500000, step=1),
+    cv.Optional(CONF_MAX_DISCHARGE_CURRENT): number_schema(unit="mA", accuracy=0, device_class="current", min_val=0, max_val=500000, step=1),
 })
 
 async def to_code(config):
@@ -76,27 +83,27 @@ async def to_code(config):
 
     if CONF_VOLTAGE_LIMIT_OFFSET_UPPER in config:
         conf = config[CONF_VOLTAGE_LIMIT_OFFSET_UPPER]
-        n = await number.new_number(conf, parent, 30, HMI_TYPE_INT16, 0.1, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 30, HMI_TYPE_INT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_voltage_limit_offset_upper_number(n))
     if CONF_VOLTAGE_LIMIT_OFFSET_LOWER in config:
         conf = config[CONF_VOLTAGE_LIMIT_OFFSET_LOWER]
-        n = await number.new_number(conf, parent, 29, HMI_TYPE_INT16, 0.1, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 29, HMI_TYPE_INT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_voltage_limit_offset_lower_number(n))
     if CONF_CELL_VOLTAGE_WORKING_MIN_MV in config:
         conf = config[CONF_CELL_VOLTAGE_WORKING_MIN_MV]
-        n = await number.new_number(conf, parent, 25, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 25, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_cell_voltage_working_min_number(n))
     if CONF_CELL_VOLTAGE_WORKING_MAX_MV in config:
         conf = config[CONF_CELL_VOLTAGE_WORKING_MAX_MV]
-        n = await number.new_number(conf, parent, 26, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 26, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_cell_voltage_working_max_number(n))
     if CONF_CELL_VOLTAGE_SOFT_MIN_MV in config:
         conf = config[CONF_CELL_VOLTAGE_SOFT_MIN_MV]
-        n = await number.new_number(conf, parent, 31, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 31, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_cell_voltage_soft_min_number(n))
     if CONF_CELL_VOLTAGE_SOFT_MAX_MV in config:
         conf = config[CONF_CELL_VOLTAGE_SOFT_MAX_MV]
-        n = await number.new_number(conf, parent, 32, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 32, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_cell_voltage_soft_max_number(n))
     if CONF_AUTO_BALANCING_PERIOD_MS in config:
         conf = config[CONF_AUTO_BALANCING_PERIOD_MS]
@@ -108,25 +115,29 @@ async def to_code(config):
         cg.add(parent.set_balancing_periods_per_mV_number(n))
     if CONF_BALANCE_MIN_OFFSET_MV in config:
         conf = config[CONF_BALANCE_MIN_OFFSET_MV]
-        n = await number.new_number(conf, parent, 35, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 35, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_balance_min_offset_mV_number(n))
     if CONF_MINIMUM_BALANCING_VOLTAGE_MV in config:
         conf = config[CONF_MINIMUM_BALANCING_VOLTAGE_MV]
-        n = await number.new_number(conf, parent, 36, HMI_TYPE_UINT16, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 36, HMI_TYPE_UINT16, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_minimum_balancing_voltage_mV_number(n))
+    if CONF_SOC_SET in config:
+        conf = config[CONF_SOC_SET]
+        n = await number.new_number(conf, parent, 3, HMI_TYPE_UINT16, 0.01, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        cg.add(parent.set_soc_number(n))
     if CONF_SOC_SCALING_MIN in config:
         conf = config[CONF_SOC_SCALING_MIN]
-        n = await number.new_number(conf, parent, 27, HMI_TYPE_INT16, 0.01, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 27, HMI_TYPE_INT16, 100.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_soc_scaling_min_number(n))
     if CONF_SOC_SCALING_MAX in config:
         conf = config[CONF_SOC_SCALING_MAX]
-        n = await number.new_number(conf, parent, 28, HMI_TYPE_INT16, 0.01, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 28, HMI_TYPE_INT16, 100.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_soc_scaling_max_number(n))
     if CONF_MAX_CHARGE_CURRENT in config:
         conf = config[CONF_MAX_CHARGE_CURRENT]
-        n = await number.new_number(conf, parent, 39, HMI_TYPE_INT32, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 39, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_max_charge_current_number(n))
     if CONF_MAX_DISCHARGE_CURRENT in config:
         conf = config[CONF_MAX_DISCHARGE_CURRENT]
-        n = await number.new_number(conf, parent, 40, HMI_TYPE_INT32, 0.001, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 40, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_max_discharge_current_number(n))

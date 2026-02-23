@@ -63,6 +63,11 @@ CONF_HIGHEST_EVENT_LEVEL = "highest_event_level"
 #CONF_BALANCING_CELLS = "balancing_cells"
 CONF_ADC_SAMPLE_COUNT = "adc_sample_count"
 CONF_LOOP_FREQUENCY_HZ = "loop_frequency_hz"
+CONF_INVERTER_SOC = "inverter_soc"
+CONF_INVERTER_FULL_CAPACITY = "inverter_full_capacity"
+CONF_INVERTER_REMAINING_CAPACITY = "inverter_remaining_capacity"
+CONF_INVERTER_MIN_VOLTAGE_LIMIT = "inverter_min_voltage_limit"
+CONF_INVERTER_MAX_VOLTAGE_LIMIT = "inverter_max_voltage_limit"
 CONF_MODULE_TEMPERATURES = "module_temperatures"
 CONF_RAW_TEMPERATURES = "raw_temperatures"
 
@@ -279,6 +284,34 @@ CONFIG_SCHEMA = cv.Schema({
         accuracy_decimals=0,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
+    cv.Optional(CONF_INVERTER_SOC): sensor.sensor_schema(
+        unit_of_measurement=UNIT_PERCENT,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_BATTERY,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_INVERTER_FULL_CAPACITY): sensor.sensor_schema(
+        unit_of_measurement="Ah",
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_INVERTER_REMAINING_CAPACITY): sensor.sensor_schema(
+        unit_of_measurement="Ah",
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_INVERTER_MIN_VOLTAGE_LIMIT): sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    cv.Optional(CONF_INVERTER_MAX_VOLTAGE_LIMIT): sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ),
     cv.Optional(CONF_MODULE_TEMPERATURES): cv.ensure_list(sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
@@ -426,6 +459,21 @@ async def to_code(config):
     if CONF_LOOP_FREQUENCY_HZ in config:
         sens = await sensor.new_sensor(config[CONF_LOOP_FREQUENCY_HZ])
         cg.add(parent.set_loop_frequency_hz_sensor(sens))
+    if CONF_INVERTER_SOC in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_SOC])
+        cg.add(parent.set_inverter_soc_sensor(sens))
+    if CONF_INVERTER_FULL_CAPACITY in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_FULL_CAPACITY])
+        cg.add(parent.set_inverter_full_capacity_sensor(sens))
+    if CONF_INVERTER_REMAINING_CAPACITY in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_REMAINING_CAPACITY])
+        cg.add(parent.set_inverter_remaining_capacity_sensor(sens))
+    if CONF_INVERTER_MIN_VOLTAGE_LIMIT in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_MIN_VOLTAGE_LIMIT])
+        cg.add(parent.set_inverter_min_voltage_limit_sensor(sens))
+    if CONF_INVERTER_MAX_VOLTAGE_LIMIT in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_MAX_VOLTAGE_LIMIT])
+        cg.add(parent.set_inverter_max_voltage_limit_sensor(sens))
 
     if CONF_MODULE_TEMPERATURES in config:
         for conf in config[CONF_MODULE_TEMPERATURES]:

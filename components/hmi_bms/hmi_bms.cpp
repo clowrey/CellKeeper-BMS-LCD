@@ -99,7 +99,7 @@ void HMIBMS::update() {
     if (this->millis_sensor_) add_reg(HMI_REG_MILLIS);
     if (this->serial_text_sensor_) add_reg(HMI_REG_SERIAL);
     if (this->system_request_sensor_) add_reg(HMI_REG_SYSTEM_REQUEST);
-    if (this->soc_sensor_) add_reg(HMI_REG_SOC);
+    if (this->soc_sensor_ || this->soc_number_) add_reg(HMI_REG_SOC);
     if (this->charge_raw_sensor_) add_reg(HMI_REG_CHARGE);
     if (this->temperature_min_dC_sensor_) add_reg(HMI_REG_TEMPERATURE_MIN);
     if (this->temperature_max_dC_sensor_) add_reg(HMI_REG_TEMPERATURE_MAX);
@@ -113,6 +113,11 @@ void HMIBMS::update() {
     if (this->supply_voltage_5V_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_5V);
     if (this->supply_voltage_12V_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_12V);
     if (this->supply_voltage_contactor_mV_sensor_) add_reg(HMI_REG_SUPPLY_VOLTAGE_CTR);
+    if (this->inverter_soc_sensor_) add_reg(HMI_REG_INVERTER_SOC);
+    if (this->inverter_full_capacity_sensor_) add_reg(HMI_REG_INVERTER_FULL_CAPACITY_DAH);
+    if (this->inverter_remaining_capacity_sensor_) add_reg(HMI_REG_INVERTER_REMAINING_CAPACITY_DAH);
+    if (this->inverter_min_voltage_limit_sensor_) add_reg(HMI_REG_INVERTER_MIN_VOLTAGE_LIMIT_DV);
+    if (this->inverter_max_voltage_limit_sensor_) add_reg(HMI_REG_INVERTER_MAX_VOLTAGE_LIMIT_DV);
     if (this->pos_contactor_voltage_mV_sensor_) add_reg(HMI_REG_POS_CONTACTOR_VOLTAGE);
     if (this->neg_contactor_voltage_mV_sensor_) add_reg(HMI_REG_NEG_CONTACTOR_VOLTAGE);
     if (this->cell_voltage_working_min_number_) add_reg(HMI_REG_CELL_VOLTAGE_WORKING_MIN);
@@ -256,6 +261,11 @@ void HMIBMS::write_register(uint16_t reg_id, uint8_t type, float value, float sc
     return;
   }
   
+  if (!this->settings_unlocked_) {
+    ESP_LOGW(TAG, "Cannot write register %u: Settings are LOCKED. Enable 'Settings Unlock' first.", reg_id);
+    return;
+  }
+  
   // Convert float value to raw integer based on scale
   // e.g. value=3.5V, scale=0.001 (mV). Raw = 3.5 / 0.001 = 3500.
   // Wait, my `publish` logic uses `val * scale` or `val / 100`.
@@ -291,10 +301,54 @@ void HMIBMS::write_register(uint16_t reg_id, uint8_t type, float value, float sc
   }
   
   this->send_packet_(payload);
+  this->last_settings_write_ms_ = millis();
+}
+
+void HMIBMS::set_settings_unlocked(bool unlocked) {
+  this->settings_unlocked_ = unlocked;
+  this->last_settings_countdown_s_ = 0xFFFFFFFFUL;
+  if (unlocked) {
+    // Start/restart inactivity timeout window when unlock mode is enabled.
+    this->last_settings_write_ms_ = millis();
+    if (this->settings_status_text_sensor_ != nullptr) {
+      this->settings_status_text_sensor_->publish_state("Settings Unlocked (30s)");
+    }
+    return;
+  }
+  this->publish_settings_status(unlocked ? "Settings unlocked" : "Settings locked");
+}
+
+void HMIBMS::publish_settings_status(const char *status) {
+  this->settings_status_restore_pending_ = false;
+  if (this->settings_status_text_sensor_ != nullptr) {
+    this->settings_status_text_sensor_->publish_state(status);
+  }
+}
+
+void HMIBMS::publish_settings_status_temporary(const char *status, uint32_t duration_ms) {
+  if (this->settings_status_text_sensor_ != nullptr) {
+    this->settings_status_text_sensor_->publish_state(status);
+  }
+  this->settings_status_restore_pending_ = true;
+  this->settings_status_restore_at_ = millis() + duration_ms;
 }
 
 void HMIBMSNumber::control(float value) {
+  if (!this->parent_->is_settings_unlocked()) {
+    // Revert HA display back to last value confirmed from HMI/BMS bus.
+    this->revert_to_bus_state();
+    this->parent_->publish_settings_status_temporary("Settings locked (unlock to apply)", 10000);
+    // Also trigger an immediate poll so HA gets authoritative readback quickly.
+    this->parent_->update();
+    return;
+  }
+  // SOC setpoint is intended as a command-style input.
+  // Keep the entered value visible here; live SOC remains on the SOC sensor.
+  if (this->reg_id_ == HMI_REG_SOC) {
+    this->publish_state(value);
+  }
   this->parent_->write_register(this->reg_id_, this->type_, value, this->scale_);
+  this->parent_->publish_settings_status_temporary("Settings applied", 3000);
 }
 
 void HMIBMSLogSwitch::write_state(bool state) {
@@ -305,6 +359,35 @@ void HMIBMSLogSwitch::write_state(bool state) {
 }
 
 void HMIBMS::loop() {
+  if (this->settings_unlocked_ &&
+      (int32_t) (millis() - this->last_settings_write_ms_) >= (int32_t) SETTINGS_UNLOCK_TIMEOUT_MS) {
+    this->set_settings_unlocked(false);
+    this->publish_settings_status_temporary("Settings auto-locked (30s idle)", 10000);
+  }
+
+  if (this->settings_status_restore_pending_ && (int32_t)(millis() - this->settings_status_restore_at_) >= 0) {
+    this->settings_status_restore_pending_ = false;
+    if (this->settings_unlocked_) {
+      this->last_settings_countdown_s_ = 0xFFFFFFFFUL;
+    } else {
+      this->publish_settings_status("Settings locked");
+    }
+  }
+
+  if (this->settings_unlocked_ && !this->settings_status_restore_pending_) {
+    const uint32_t elapsed_ms = millis() - this->last_settings_write_ms_;
+    const uint32_t remaining_ms = (elapsed_ms >= SETTINGS_UNLOCK_TIMEOUT_MS) ? 0 : (SETTINGS_UNLOCK_TIMEOUT_MS - elapsed_ms);
+    const uint32_t remaining_s = (remaining_ms + 999) / 1000;
+    if (remaining_s != this->last_settings_countdown_s_) {
+      this->last_settings_countdown_s_ = remaining_s;
+      if (this->settings_status_text_sensor_ != nullptr) {
+        char buf[48];
+        snprintf(buf, sizeof(buf), "Settings Unlocked (%lus)", (unsigned long) remaining_s);
+        this->settings_status_text_sensor_->publish_state(buf);
+      }
+    }
+  }
+
   // 1. Process all sensor updates from the queue
   while (!this->publish_queue_.empty()) {
     auto update = this->publish_queue_.front();
@@ -528,9 +611,19 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       char buf[32];
       snprintf(buf, sizeof(buf), "%llu", val);
       this->serial_text_sensor_->publish_state(buf);
-    } else if (reg_id == HMI_REG_SOC && this->soc_sensor_ != nullptr) {
-      uint32_t val = (reg_type == HMI_TYPE_UINT16) ? (v[0] | (v[1] << 8)) : ((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->publish_queue_.push_back({this->soc_sensor_, (float)val / 100.0f});
+    } else if (reg_id == HMI_REG_SOC) {
+      uint32_t val;
+      if (reg_type == HMI_TYPE_UINT16 || reg_type == HMI_TYPE_INT16) {
+        val = (uint16_t) (v[0] | (v[1] << 8));
+      } else {
+        val = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+      }
+      if (this->soc_sensor_ != nullptr) {
+        this->publish_queue_.push_back({this->soc_sensor_, (float)val / 100.0f});
+      }
+      if (this->soc_number_ != nullptr) {
+        this->soc_number_->publish_from_bus((float)val * 0.01f);
+      }
     } else if (reg_id == HMI_REG_CURRENT && this->current_mA_sensor_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
       this->publish_queue_.push_back({this->current_mA_sensor_, (float)val});
@@ -598,48 +691,63 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
     } else if (reg_id == HMI_REG_SUPPLY_VOLTAGE_CTR && this->supply_voltage_contactor_mV_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
       this->publish_queue_.push_back({this->supply_voltage_contactor_mV_sensor_, (float)val});
+    } else if (reg_id == HMI_REG_INVERTER_SOC && this->inverter_soc_sensor_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->publish_queue_.push_back({this->inverter_soc_sensor_, (float)val * 0.01f});
+    } else if (reg_id == HMI_REG_INVERTER_FULL_CAPACITY_DAH && this->inverter_full_capacity_sensor_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->publish_queue_.push_back({this->inverter_full_capacity_sensor_, (float)val * 0.1f});
+    } else if (reg_id == HMI_REG_INVERTER_REMAINING_CAPACITY_DAH && this->inverter_remaining_capacity_sensor_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->publish_queue_.push_back({this->inverter_remaining_capacity_sensor_, (float)val * 0.1f});
+    } else if (reg_id == HMI_REG_INVERTER_MIN_VOLTAGE_LIMIT_DV && this->inverter_min_voltage_limit_sensor_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->publish_queue_.push_back({this->inverter_min_voltage_limit_sensor_, (float)val * 0.1f});
+    } else if (reg_id == HMI_REG_INVERTER_MAX_VOLTAGE_LIMIT_DV && this->inverter_max_voltage_limit_sensor_ != nullptr) {
+      int16_t val = (int16_t)(v[0] | (v[1] << 8));
+      this->publish_queue_.push_back({this->inverter_max_voltage_limit_sensor_, (float)val * 0.1f});
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_WORKING_MIN && this->cell_voltage_working_min_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->cell_voltage_working_min_number_->publish_state((float)val * 0.001f);
+      this->cell_voltage_working_min_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_WORKING_MAX && this->cell_voltage_working_max_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->cell_voltage_working_max_number_->publish_state((float)val * 0.001f);
+      this->cell_voltage_working_max_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_SOC_SCALING_MIN && this->soc_scaling_min_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->soc_scaling_min_number_->publish_state((float)val * 0.01f);
+      this->soc_scaling_min_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_SOC_SCALING_MAX && this->soc_scaling_max_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->soc_scaling_max_number_->publish_state((float)val * 0.01f);
+      this->soc_scaling_max_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_VOLTAGE_LIMIT_OFFSET_LOWER && this->voltage_limit_offset_lower_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->voltage_limit_offset_lower_number_->publish_state((float)val * 0.1f);
+      this->voltage_limit_offset_lower_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_VOLTAGE_LIMIT_OFFSET_UPPER && this->voltage_limit_offset_upper_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->voltage_limit_offset_upper_number_->publish_state((float)val * 0.1f);
+      this->voltage_limit_offset_upper_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_SOFT_MIN && this->cell_voltage_soft_min_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->cell_voltage_soft_min_number_->publish_state((float)val * 0.001f);
+      this->cell_voltage_soft_min_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_SOFT_MAX && this->cell_voltage_soft_max_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->cell_voltage_soft_max_number_->publish_state((float)val * 0.001f);
+      this->cell_voltage_soft_max_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_AUTO_BALANCING_PERIOD_MS && this->auto_balancing_period_ms_number_ != nullptr) {
       uint32_t val = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
-      this->auto_balancing_period_ms_number_->publish_state((float)val);
+      this->auto_balancing_period_ms_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_BALANCING_PERIODS_PER_MV && this->balancing_periods_per_mV_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->balancing_periods_per_mV_number_->publish_state((float)val);
+      this->balancing_periods_per_mV_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_BALANCE_MIN_OFFSET_MV && this->balance_min_offset_mV_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->balance_min_offset_mV_number_->publish_state((float)val * 0.001f);
+      this->balance_min_offset_mV_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_MINIMUM_BALANCING_VOLTAGE_MV && this->minimum_balancing_voltage_mV_number_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
-      this->minimum_balancing_voltage_mV_number_->publish_state((float)val * 0.001f);
+      this->minimum_balancing_voltage_mV_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_MAX_CHARGE_CURRENT && this->max_charge_current_number_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->max_charge_current_number_->publish_state((float)val * 0.001f);
+      this->max_charge_current_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_MAX_DISCHARGE_CURRENT && this->max_discharge_current_number_ != nullptr) {
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
-      this->max_discharge_current_number_->publish_state((float)val * 0.001f);
+      this->max_discharge_current_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_ADC_SAMPLE_COUNT && this->adc_sample_count_sensor_ != nullptr) {
       uint16_t val = v[0] | (v[1] << 8);
       this->publish_queue_.push_back({this->adc_sample_count_sensor_, (float)val});
@@ -921,6 +1029,11 @@ void HMIBMS::handle_read_events_response_(const uint8_t *data, size_t length) {
     uint16_t type = data[offset] | (data[offset + 1] << 8);
     uint16_t level = data[offset + 2] | (data[offset + 3] << 8);
     uint16_t event_count = data[offset + 4] | (data[offset + 5] << 8);
+    
+    // Override: Inverter Detected (Type 43) is always Info level
+    if (type == 43) {
+      level = 1; // INFO
+    }
     
     const char* type_str = (type < sizeof(EVENT_TYPES)/sizeof(EVENT_TYPES[0])) ? EVENT_TYPES[type] : "UNKNOWN";
     const char* level_str = (level < sizeof(EVENT_LEVELS)/sizeof(EVENT_LEVELS[0])) ? EVENT_LEVELS[level] : "??";

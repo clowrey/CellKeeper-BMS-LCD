@@ -41,9 +41,6 @@ sensor:
       name: "Loop Time"
 
   - platform: hmi_bms
-    soc:
-      id: bms_soc
-      name: "BMS SOC"
     soc_voltage_based:
       id: bms_soc_voltage_based
       name: "BMS SOC Voltage Based"
@@ -151,6 +148,29 @@ sensor:
     loop_frequency_hz:
       id: bms_loop_freq
       name: "BMS Loop Frequency"
+    inverter_soc:
+      id: bms_inverter_soc
+      name: "Inverter CAN SOC"
+      unit_of_measurement: "%"
+      device_class: battery
+    inverter_full_capacity:
+      id: bms_inverter_full_cap
+      name: "Inverter CAN Full Capacity"
+      unit_of_measurement: "Ah"
+    inverter_remaining_capacity:
+      id: bms_inverter_rem_cap
+      name: "Inverter CAN Remaining Capacity"
+      unit_of_measurement: "Ah"
+    inverter_min_voltage_limit:
+      id: bms_inverter_min_v
+      name: "Inverter CAN Min Voltage Limit"
+      unit_of_measurement: "V"
+      device_class: voltage
+    inverter_max_voltage_limit:
+      id: bms_inverter_max_v
+      name: "Inverter CAN Max Voltage Limit"
+      unit_of_measurement: "V"
+      device_class: voltage
     cell_voltages:
       - name: "Cell Voltage 001"
       # ... (Keeping the full list of cell voltages is fine, they don't need triggers)
@@ -271,9 +291,46 @@ sensor:
       - name: "BMS Module Temp 7"
       - name: "BMS Module Temp 8"
 
+  - platform: template
+    name: "BMS SOC"
+    id: bms_soc
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 2
+    lambda: |-
+      if (id(bms_soc_set_cmd).has_state()) {
+        return id(bms_soc_set_cmd).state;
+      }
+      return NAN;
+    update_interval: 1s
+
   - platform: wifi_signal
     id: wifi_rssi_sensor
     name: "WiFi RSSI"
+
+  - platform: template
+    name: "Voltage BMB Sum"
+    id: bms_voltage_bmb_sum
+    unit_of_measurement: "V"
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 3
+    lambda: |-
+      float sum = 0.0f;
+      size_t valid = 0;
+      const auto &cells = id(bms_hub).get_cell_voltage_sensors();
+      for (auto *cell : cells) {
+        if (cell != nullptr && !isnan(cell->state)) {
+          sum += cell->state;
+          valid++;
+        }
+      }
+      if (valid == 0) {
+        return NAN;
+      }
+      return sum;
+    update_interval: 1s
 
   # --- ENERGY SENSORS ---
 
@@ -291,6 +348,19 @@ sensor:
       }
       // Voltage is V, Current is A -> Power is W. Divide by 1000 for kW.
       return (id(bms_voltage_mV).state * id(bms_current_mA).state) / 1000.0f;
+    update_interval: 100ms
+
+  # 1b. Display Power (W) - integer for gauge readability
+  - platform: template
+    name: "BMS Power W"
+    id: bms_power_w
+    unit_of_measurement: "W"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: |-
+      if (std::isnan(id(bms_power_kW).state)) return NAN;
+      return id(bms_power_kW).state * 1000.0f;
     update_interval: 100ms
 
   # 2. Split Power into Charging (Positive) and Discharging (Negative -> Positive)
@@ -379,6 +449,9 @@ text_sensor:
     event_history:
       id: bms_event_history
       name: "BMS Event History"
+    settings_write_status:
+      id: bms_settings_write_status
+      name: "BMS Settings Status"
     log:
       id: bms_log
       name: "BMS Log"
@@ -529,7 +602,7 @@ text_sensor:
     error_voltage_mismatch: { name: "Critical: Voltage Mismatch" }
     error_bmb_read_error: { name: "Critical: BMB Read Error" }
     error_bmb_crc_mismatch: { name: "Critical: BMB CRC Mismatch" }
-    error_inverter_detected: { name: "Warning: Inverter Detected" }
+    error_inverter_detected: { name: "Info: Inverter Detected" }
     error_estop_pressed: { name: "Fatal: E-Stop Pressed" }
     error_boot_normal: { name: "Info: Boot Normal" }
     error_boot_watchdog: { name: "Info: Boot Watchdog" }
@@ -603,8 +676,26 @@ switch:
       name: "BMS Log Enable"
       restore_mode: RESTORE_DEFAULT_OFF
 
+  - platform: template
+    name: "BMS Settings Unlock"
+    id: bms_settings_unlock
+    icon: mdi:lock-open-variant
+    restore_mode: RESTORE_DEFAULT_OFF
+    lambda: |-
+      return id(bms_hub).is_settings_unlocked();
+    turn_on_action:
+      - lambda: |-
+          id(bms_hub).set_settings_unlocked(true);
+    turn_off_action:
+      - lambda: |-
+          id(bms_hub).set_settings_unlocked(false);
+
 number:
   - platform: hmi_bms
+    soc_set:
+      id: bms_soc_set_cmd
+      name: "BMS SOC Set Cmd"
+      mode: box
     soc_scaling_min:
       name: "BMS SOC Scaling Min"
       mode: box

@@ -18,12 +18,24 @@ class HMIBMSNumber : public number::Number {
   HMIBMSNumber(HMIBMS *parent, uint16_t reg_id, uint8_t type, float scale = 1.0f)
       : parent_(parent), reg_id_(reg_id), type_(type), scale_(scale) {}
   void control(float value) override;
+  void publish_from_bus(float value) {
+    this->last_bus_state_ = value;
+    this->has_bus_state_ = true;
+    this->publish_state(value);
+  }
+  void revert_to_bus_state() {
+    if (this->has_bus_state_) {
+      this->publish_state(this->last_bus_state_);
+    }
+  }
 
  protected:
   HMIBMS *parent_;
   uint16_t reg_id_;
   uint8_t type_;
   float scale_;
+  float last_bus_state_{0.0f};
+  bool has_bus_state_{false};
 };
 
 class HMIBMSLogSwitch : public switch_::Switch {
@@ -100,10 +112,15 @@ enum HMIRegister {
   HMI_REG_BALANCING_PERIODS_PER_MV = 34,
   HMI_REG_BALANCE_MIN_OFFSET_MV = 35,
   HMI_REG_MINIMUM_BALANCING_VOLTAGE_MV = 36,
-  HMI_REG_ADC_SAMPLE_COUNT = 37,
-  HMI_REG_LOOP_FREQUENCY_HZ = 38,
-  HMI_REG_MAX_CHARGE_CURRENT = 39,
-  HMI_REG_MAX_DISCHARGE_CURRENT = 40,
+  HMI_REG_INVERTER_SOC = 37,               // int16 (0.01%)
+  HMI_REG_INVERTER_FULL_CAPACITY_DAH = 38, // int16 (0.1Ah)
+  HMI_REG_INVERTER_REMAINING_CAPACITY_DAH = 39, // int16 (0.1Ah)
+  HMI_REG_INVERTER_MIN_VOLTAGE_LIMIT_DV = 40,   // int16 (0.1V)
+  HMI_REG_INVERTER_MAX_VOLTAGE_LIMIT_DV = 41,   // int16 (0.1V)
+  HMI_REG_ADC_SAMPLE_COUNT = 42,
+  HMI_REG_LOOP_FREQUENCY_HZ = 43,
+  HMI_REG_MAX_CHARGE_CURRENT = 44,
+  HMI_REG_MAX_DISCHARGE_CURRENT = 45,
   HMI_REG_CELL_VOLTAGES_START = 0x100,
   HMI_REG_CELL_VOLTAGES_END = 0x1FF,
   HMI_REG_MODULE_TEMPS_START = 0x200,
@@ -144,8 +161,14 @@ class HMIBMS : public PollingComponent, public uart::UARTDevice {
   void set_supply_voltage_5V_mV_sensor(sensor::Sensor *s) { supply_voltage_5V_mV_sensor_ = s; }
   void set_supply_voltage_12V_mV_sensor(sensor::Sensor *s) { supply_voltage_12V_mV_sensor_ = s; }
   void set_supply_voltage_contactor_mV_sensor(sensor::Sensor *s) { supply_voltage_contactor_mV_sensor_ = s; }
+  void set_inverter_soc_sensor(sensor::Sensor *s) { inverter_soc_sensor_ = s; }
+  void set_inverter_full_capacity_sensor(sensor::Sensor *s) { inverter_full_capacity_sensor_ = s; }
+  void set_inverter_remaining_capacity_sensor(sensor::Sensor *s) { inverter_remaining_capacity_sensor_ = s; }
+  void set_inverter_min_voltage_limit_sensor(sensor::Sensor *s) { inverter_min_voltage_limit_sensor_ = s; }
+  void set_inverter_max_voltage_limit_sensor(sensor::Sensor *s) { inverter_max_voltage_limit_sensor_ = s; }
   void set_cell_voltage_working_min_number(HMIBMSNumber *n) { cell_voltage_working_min_number_ = n; }
   void set_cell_voltage_working_max_number(HMIBMSNumber *n) { cell_voltage_working_max_number_ = n; }
+  void set_soc_number(HMIBMSNumber *n) { soc_number_ = n; }
   void set_soc_scaling_min_number(HMIBMSNumber *n) { soc_scaling_min_number_ = n; }
   void set_soc_scaling_max_number(HMIBMSNumber *n) { soc_scaling_max_number_ = n; }
   void set_voltage_limit_offset_lower_number(HMIBMSNumber *n) { voltage_limit_offset_lower_number_ = n; }
@@ -182,6 +205,11 @@ class HMIBMS : public PollingComponent, public uart::UARTDevice {
   void set_log_enabled(bool enabled) { log_enabled_ = enabled; }
   uint32_t get_log_update_interval() const { return log_update_interval_ms_; }
   void set_log_update_interval(uint32_t ms) { log_update_interval_ms_ = ms; }
+  void set_settings_unlocked(bool unlocked);
+  bool is_settings_unlocked() const { return settings_unlocked_; }
+  void set_settings_status_text_sensor(text_sensor::TextSensor *s) { settings_status_text_sensor_ = s; }
+  void publish_settings_status(const char *status);
+  void publish_settings_status_temporary(const char *status, uint32_t duration_ms);
   void send_system_request(uint8_t request);
   void write_register(uint16_t reg_id, uint8_t type, float value, float scale);
 
@@ -241,8 +269,14 @@ class HMIBMS : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *supply_voltage_5V_mV_sensor_{nullptr};
   sensor::Sensor *supply_voltage_12V_mV_sensor_{nullptr};
   sensor::Sensor *supply_voltage_contactor_mV_sensor_{nullptr};
+  sensor::Sensor *inverter_soc_sensor_{nullptr};
+  sensor::Sensor *inverter_full_capacity_sensor_{nullptr};
+  sensor::Sensor *inverter_remaining_capacity_sensor_{nullptr};
+  sensor::Sensor *inverter_min_voltage_limit_sensor_{nullptr};
+  sensor::Sensor *inverter_max_voltage_limit_sensor_{nullptr};
   HMIBMSNumber *cell_voltage_working_min_number_{nullptr};
   HMIBMSNumber *cell_voltage_working_max_number_{nullptr};
+  HMIBMSNumber *soc_number_{nullptr};
   HMIBMSNumber *soc_scaling_min_number_{nullptr};
   HMIBMSNumber *soc_scaling_max_number_{nullptr};
   HMIBMSNumber *voltage_limit_offset_lower_number_{nullptr};
@@ -274,6 +308,13 @@ class HMIBMS : public PollingComponent, public uart::UARTDevice {
   bool bypass_crc_{false};
   uint32_t baud_rate_{460800};
   bool dump_raw_{false};
+  bool settings_unlocked_{false};
+  uint32_t last_settings_write_ms_{0};
+  static const uint32_t SETTINGS_UNLOCK_TIMEOUT_MS = 30000;  // 30 seconds
+  text_sensor::TextSensor *settings_status_text_sensor_{nullptr};
+  uint32_t last_settings_countdown_s_{0xFFFFFFFFUL};
+  bool settings_status_restore_pending_{false};
+  uint32_t settings_status_restore_at_{0};
   bool log_enabled_{false};
   uint32_t log_update_interval_ms_{2000};
   HMIBMSLogSwitch *log_enable_switch_{nullptr};

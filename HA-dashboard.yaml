@@ -1,9 +1,12 @@
 title: BMS Dashboard
 views:
   - title: Overview
-    cards:
-      - type: vertical-stack
-        cards:
+    type: sections
+    max_columns: 3
+    sections:
+      - cards:
+          - type: heading
+            heading: Overview
           - type: custom:auto-entities
             card:
               type: grid
@@ -12,20 +15,28 @@ views:
               square: false
             card_param: cards
             filter:
-              template: |
-                {% for state in states.sensor | selectattr('entity_id', 'search', 'ck0_(fatal|critical|warning|info)_') | sort(attribute='attributes.friendly_name') -%}
+              template: >
+                {% for state in states.sensor | selectattr('entity_id',
+                'search', 'ck0_(fatal|critical|warning|info)_') |
+                sort(attribute='attributes.friendly_name') -%}
                   {% if state.state not in ['INACTIVE', 'unknown', 'unavailable'] and not state.state.startswith('INACTIVE') -%}
-                    {% set color = '#FFC107' -%}
-                    {% if 'FATAL' in state.state %}{% set color = '#D32F2F' -%}
-                    {% elif 'CRITICAL' in state.state %}{% set color = '#F44336' -%}
-                    {% elif 'WARNING' in state.state %}{% set color = '#FFC107' -%}
-                    {% elif 'INFO' in state.state %}{% set color = '#2196F3' -%}
+                    {% set color = '#2196F3' -%}
+                    {% set level = 'Info' -%}
+                    {% if 'FATAL' in state.state %}{% set color = '#D50000' -%}{% set level = 'Fatal' -%}
+                    {% elif 'CRITICAL' in state.state %}{% set color = '#F44336' -%}{% set level = 'Critical' -%}
+                    {% elif 'WARNING' in state.state %}{% set color = '#FFC107' -%}{% set level = 'Warning' -%}
+                    {% elif 'INFO' in state.state %}{% set color = '#2196F3' -%}{% set level = 'Info' -%}
+                    {% elif 'fatal' in state.entity_id %}{% set color = '#D50000' -%}{% set level = 'Fatal' -%}
+                    {% elif 'critical' in state.entity_id %}{% set color = '#F44336' -%}{% set level = 'Critical' -%}
+                    {% elif 'warning' in state.entity_id %}{% set color = '#FFC107' -%}{% set level = 'Warning' -%}
+                    {% elif 'info' in state.entity_id %}{% set color = '#2196F3' -%}{% set level = 'Info' -%}
                     {% endif -%}
                     {{
                       {
                         "type": "tile",
                         "entity": state.entity_id,
-                        "name": state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim,
+                        "name": (state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim),
+                        "color": color,
                         "card_mod": {
                           "style": "ha-card { --tile-color: " + color + " !important; }"
                         }
@@ -35,11 +46,9 @@ views:
                 {%- endfor %}
             show_empty: false
             unique: true
-
           - type: custom:mushroom-title-card
             title: BMS Status
             subtitle: Battery Management System Overview
-
           - type: grid
             columns: 2
             square: false
@@ -47,7 +56,7 @@ views:
               - type: gauge
                 entity: sensor.ck0_bms_soc
                 name: SOC
-                unit: "%"
+                unit: '%'
                 min: 0
                 max: 100
                 needle: true
@@ -63,13 +72,13 @@ views:
                 needle: true
                 segments:
                   - from: 288
-                    color: "#db4437"
+                    color: '#db4437'
                   - from: 300
-                    color: "#ffa600"
+                    color: '#ffa600'
                   - from: 330
-                    color: "#43a047"
+                    color: '#43a047'
                   - from: 400
-                    color: "#db4437"
+                    color: '#db4437'
               - type: gauge
                 entity: sensor.ck0_bms_cell_min
                 name: Cell Min
@@ -78,15 +87,15 @@ views:
                 needle: true
                 segments:
                   - from: 2.95
-                    color: "#db4437"
-                  - from: 3.0
-                    color: "#ffa600"
+                    color: '#db4437'
+                  - from: 3
+                    color: '#ffa600'
                   - from: 3.3
-                    color: "#43a047"
+                    color: '#43a047'
                   - from: 4.15
-                    color: "#ffa600"
+                    color: '#ffa600'
                   - from: 4.2
-                    color: "#db4437"
+                    color: '#db4437'
               - type: gauge
                 entity: sensor.ck0_bms_cell_max
                 name: Cell Max
@@ -95,15 +104,15 @@ views:
                 needle: true
                 segments:
                   - from: 2.95
-                    color: "#db4437"
-                  - from: 3.0
-                    color: "#ffa600"
+                    color: '#db4437'
+                  - from: 3
+                    color: '#ffa600'
                   - from: 3.3
-                    color: "#43a047"
+                    color: '#43a047'
                   - from: 4.15
-                    color: "#ffa600"
+                    color: '#ffa600'
                   - from: 4.2
-                    color: "#db4437"
+                    color: '#db4437'
               - type: gauge
                 entity: sensor.ck0_bms_current
                 name: Current
@@ -114,15 +123,15 @@ views:
                   green: 0
                   red: -200
               - type: gauge
-                entity: sensor.ck0_bms_power
+                entity: sensor.ck0_bms_power_w
                 name: Power
-                min: -100
-                max: 100
+                unit: W
+                min: -10000
+                max: 10000
                 needle: true
                 severity:
                   green: 0
-                  red: -100
-
+                  red: -10000
           - type: entities
             title: System Status
             entities:
@@ -130,8 +139,6 @@ views:
                 name: System State
               - entity: sensor.ck0_bms_contactor_state_text
                 name: Contactor State
-              - entity: sensor.ck0_bms_last_event_text
-                name: Last Event
               - entity: button.ck0_bms_run
                 name: Run BMS
                 icon: mdi:play
@@ -141,16 +148,20 @@ views:
               - entity: button.ck0_bms_calibrate
                 name: Calibrate BMS
                 icon: mdi:wrench
-
-  - title: Battery Details
-    cards:
-      - type: vertical-stack
-        cards:
+  - title: Detail
+    type: sections
+    max_columns: 3
+    sections:
+      - cards:
+          - type: heading
+            heading: Battery Details
           - type: entities
             title: Voltage & Capacity
             entities:
               - entity: sensor.ck0_bms_output_voltage
                 name: Output Voltage
+              - entity: sensor.ck0_voltage_bmb_sum
+                name: Voltage BMB Sum
               - entity: sensor.ck0_bms_contactor_voltage_positive
                 name: Positive Contactor
               - entity: sensor.ck0_bms_contactor_voltage_negative
@@ -159,11 +170,25 @@ views:
                 name: Capacity
               - entity: sensor.ck0_bms_charge_raw
                 name: Charge Raw
+              - entity: sensor.ck0_bms_soc
+                name: SOC (EKF Based)
               - entity: sensor.ck0_bms_soc_voltage_based
                 name: SOC (Voltage Based)
               - entity: sensor.ck0_bms_soc_basic_count
                 name: SOC (Basic Count)
-
+          - type: entities
+            title: Inverter CAN Values
+            entities:
+              - entity: sensor.ck0_inverter_can_soc
+                name: Inverter CAN SOC
+              - entity: sensor.ck0_inverter_can_full_capacity
+                name: Inverter CAN Full Capacity
+              - entity: sensor.ck0_inverter_can_remaining_capacity
+                name: Inverter CAN Remaining Capacity
+              - entity: sensor.ck0_inverter_can_min_voltage_limit
+                name: Inverter CAN Min Voltage
+              - entity: sensor.ck0_inverter_can_max_voltage_limit
+                name: Inverter CAN Max Voltage
           - type: entities
             title: Energy Stats
             entities:
@@ -177,166 +202,9 @@ views:
                 name: Energy Discharged (Daily)
               - entity: sensor.ck0_bms_net_energy_daily
                 name: Net Energy (Daily)
-
-  - title: Cells
-    cards:
-      - type: vertical-stack
-        cards:
-          - type: entities
-            title: Cell Summary
-            entities:
-              - entity: sensor.ck0_bms_cell_min
-                name: Min Cell Voltage
-              - entity: sensor.ck0_bms_cell_max
-                name: Max Cell Voltage
-              - entity: sensor.ck0_bms_cell_delta
-                name: Cell Delta
-              - entity: sensor.ck0_bms_balancing_cells
-                name: Balancing Cells
-
-          - type: markdown
-            content: >
-              **Note:** Cells are automatically listed below.
-
-          - type: custom:auto-entities
-            card:
-              type: entities
-              title: Cell Voltages
-              show_header_toggle: false
-              state_color: true
-            filter:
-              template: |
-                {% for state in states.sensor | selectattr('entity_id', 'search', 'ck0_cell_voltage_') | sort(attribute='entity_id') -%}
-                  {{
-                    {
-                      'entity': state.entity_id,
-                      'name': 'Cell ' + state.entity_id.split('_')[-1]
-                    }
-                  }},
-                {%- endfor %}
-
-  - title: Cell Bar Graph
-    panel: true
-    cards:
-      - type: custom:plotly-graph
-        title: Cell Voltages
-        raw_plotly_config: true
-        refresh_interval: 2
-        fn: |-
-          $ex {
-            vars.x = [];
-            vars.y = [];
-            
-            for (let j = 0; j < 108; j++) {
-              let index = j + 1;
-              let suffix = index.toString().padStart(3, '0');
-              let entity_id = "sensor.ck0_cell_voltage_" + suffix;
-              
-              if (hass.states[entity_id]) {
-                let val = parseFloat(hass.states[entity_id].state);
-                // Only include valid values > 0 to avoid skewing the graph
-                if (!isNaN(val) && val > 0.01) {
-                  vars.x.push(index);
-                  vars.y.push(val);
-                }
-              }
-            }
-
-            if (vars.y.length > 0) {
-              vars.ymin = Math.min(...vars.y) - 0.01;
-              vars.ymax = Math.max(...vars.y) + 0.01;
-            } else {
-              vars.ymin = 0;
-              vars.ymax = 5;
-            }
-          }
-        entities:
-          - entity: ""
-            type: bar
-            x: $ex vars.x
-            y: $ex vars.y
-            texttemplate: "%{y:.3f}"
-            marker:
-              color: "#3498db"
-        layout:
-          height: 600
-          xaxis:
-            title: Cell Number
-            type: category
-          yaxis:
-            title: Voltage (V)
-            range:
-              - $ex vars.ymin
-              - $ex vars.ymax
-        config:
-          displayModeBar: false
-          scrollZoom: false
-
-  - title: Cell Line Graph
-    panel: true
-    cards:
-      - type: custom:plotly-graph
-        title: Cell Voltages Line
-        raw_plotly_config: true
-        refresh_interval: 2
-        fn: |-
-          $ex {
-            vars.x = [];
-            vars.y = [];
-            
-            for (let j = 0; j < 108; j++) {
-              let index = j + 1;
-              let suffix = index.toString().padStart(3, '0');
-              let entity_id = "sensor.ck0_cell_voltage_" + suffix;
-              
-              if (hass.states[entity_id]) {
-                let val = parseFloat(hass.states[entity_id].state);
-                if (!isNaN(val) && val > 0.01) {
-                  vars.x.push(index);
-                  vars.y.push(val);
-                }
-              }
-            }
-
-            if (vars.y.length > 0) {
-              vars.ymin = Math.min(...vars.y) - 0.01;
-              vars.ymax = Math.max(...vars.y) + 0.01;
-            } else {
-              vars.ymin = 0;
-              vars.ymax = 5;
-            }
-          }
-        entities:
-          - entity: ""
-            type: scatter
-            mode: lines+markers
-            x: $ex vars.x
-            y: $ex vars.y
-            texttemplate: "%{y:.3f}"
-            line:
-              color: "#e74c3c"
-              width: 2
-            marker:
-              size: 6
-        layout:
-          height: 600
-          xaxis:
-            title: Cell Number
-            type: category
-            showgrid: false
-          yaxis:
-            title: Voltage (V)
-            range:
-              - $ex vars.ymin
-              - $ex vars.ymax
-        config:
-          displayModeBar: false
-          scrollZoom: false
-
-  - title: Temperature
-    cards:
-      - type: vertical-stack
-        cards:
+      - cards:
+          - type: heading
+            heading: Temperature
           - type: grid
             columns: 2
             cards:
@@ -346,7 +214,6 @@ views:
               - type: entity
                 entity: sensor.ck0_bms_temp_max
                 name: Max Temp
-
           - type: entities
             title: Module Temperatures
             entities:
@@ -358,80 +225,358 @@ views:
               - entity: sensor.ck0_bms_module_temp_6
               - entity: sensor.ck0_bms_module_temp_7
               - entity: sensor.ck0_bms_module_temp_8
+  - title: Cells
+    type: sections
+    max_columns: 4
+    sections:
+      - type: grid
+        column_span: 4
+        cards:
+          - type: entities
+            grid_options:
+              columns: 12
+              rows: auto
+            title: Cell Summary
+            entities:
+              - entity: sensor.ck0_bms_cell_min
+                name: Min Cell Voltage
+              - entity: sensor.ck0_bms_cell_max
+                name: Max Cell Voltage
+              - entity: sensor.ck0_bms_cell_delta
+                name: Cell Delta
+              - entity: sensor.ck0_bms_balancing_cells
+                name: Balancing Cells
+          - type: custom:plotly-graph
+            grid_options:
+              columns: full
+              rows: 10
+            title: Cell Voltages
+            raw_plotly_config: true
+            refresh_interval: 2
+            fn: |-
+              $ex {
+                vars.x = [];
+                vars.y = [];
+                vars.colors = [];
+                
+                let balancing_str = hass.states['sensor.ck0_bms_balancing_cells'] ? hass.states['sensor.ck0_bms_balancing_cells'].state : "";
+                let balancing_cells = [];
+                if (balancing_str && balancing_str !== "None" && balancing_str !== "unknown" && balancing_str !== "unavailable") {
+                   balancing_cells = balancing_str.split(',').map(s => parseInt(s.trim()));
+                }
+                
+                for (let j = 0; j < 108; j++) {
+                  let index = j + 1;
+                  let suffix = index.toString().padStart(3, '0');
+                  let entity_id = "sensor.ck0_cell_voltage_" + suffix;
+                  
+                  if (hass.states[entity_id]) {
+                    let val = parseFloat(hass.states[entity_id].state);
+                    // Only include valid values > 0 to avoid skewing the graph
+                    if (!isNaN(val) && val > 0.01) {
+                      vars.x.push(index);
+                      vars.y.push(val);
+                      
+                      if (balancing_cells.includes(index)) {
+                        vars.colors.push("#FF9800"); // Balancing color (Orange)
+                      } else {
+                        vars.colors.push("#3498db"); // Normal color (Blue)
+                      }
+                    }
+                  }
+                }
 
+                if (vars.y.length > 0) {
+                  vars.ymin = Math.min(...vars.y) - 0.01;
+                  vars.ymax = Math.max(...vars.y) + 0.01;
+                } else {
+                  vars.ymin = 0;
+                  vars.ymax = 5;
+                }
+              }
+            entities:
+              - entity: ''
+                type: bar
+                x: $ex vars.x
+                'y': $ex vars.y
+                texttemplate: '%{y:.3f}'
+                marker:
+                  color: $ex vars.colors
+            layout:
+              autosize: true
+              height: 600
+              xaxis:
+                title: Cell Number
+                type: category
+              yaxis:
+                title: Voltage (V)
+                range:
+                  - $ex vars.ymin
+                  - $ex vars.ymax
+            config:
+              responsive: true
+              displayModeBar: false
+              scrollZoom: false
   - title: Configuration
-    cards:
-      - type: entities
-        title: BMS Settings
-        entities:
-          - entity: number.ck0_bms_soc_scaling_min
-            name: SOC Scaling Min
-          - entity: number.ck0_bms_soc_scaling_max
-            name: SOC Scaling Max
-          - entity: number.ck0_bms_voltage_limit_offset_lower
-            name: Voltage Limit Offset Lower
-          - entity: number.ck0_bms_voltage_limit_offset_upper
-            name: Voltage Limit Offset Upper
-          - entity: number.ck0_bms_cell_voltage_soft_min
-            name: Cell Voltage Soft Min
-          - entity: number.ck0_bms_cell_voltage_soft_max
-            name: Cell Voltage Soft Max
-          - entity: number.ck0_bms_cell_voltage_working_min
-            name: Cell Voltage Working Min
-          - entity: number.ck0_bms_cell_voltage_working_max
-            name: Cell Voltage Working Max
-          - entity: number.ck0_bms_max_charge_current
-            name: Max Charge Current
-          - entity: number.ck0_bms_max_discharge_current
-            name: Max Discharge Current
+    type: sections
+    max_columns: 4
+    sections:
+      - cards:
+          - type: heading
+            heading: Configuration Guide
+          - type: markdown
+            content: >
+              ## BMS Configuration
 
-      - type: entities
-        title: Balancing Configuration
-        entities:
-          - entity: number.ck0_bms_auto_balancing_period
-            name: Auto Balancing Period
-          - entity: number.ck0_bms_balancing_periods_per_mv
-            name: Balancing Periods per mV
-          - entity: number.ck0_bms_balance_min_offset
-            name: Balance Min Offset
-          - entity: number.ck0_bms_minimum_balancing_voltage
-            name: Min Balancing Voltage
+              Use **Settings Unlock Mode** to allow writes. When locked, values
+              are read-only and write attempts are blocked.
 
+
+              ### Voltage Protection Tiers
+
+              - **Working Limits**: Defines the 0% to 100% SoC range used for
+              normal operation.
+
+              - **Soft Limits**: Triggers warning behavior and current limiting
+              if exceeded.
+
+              - **Hard Limits**: Firmware safety limits that force immediate
+              disconnect.
+
+
+              **Tip:** Set Working Min to your inverter's 0% SoC voltage point.
+      - cards:
+          - type: heading
+            heading: Access & Write Status
+          - type: grid
+            columns: 1
+            square: false
+            cards:
+              - type: entities
+                title: Settings Unlock
+                show_header_toggle: false
+                entities:
+                  - entity: switch.ck0_bms_settings_unlock
+                    name: Settings Unlock
+              - type: tile
+                entity: sensor.ck0_bms_settings_status
+                name: Settings Status
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% set state_l = state | lower %}
+                      {% if 'settings applied' in state_l %}
+                        --tile-color: #4CAF50 !important;
+                        --primary-text-color: #4CAF50 !important;
+                        --secondary-text-color: #4CAF50 !important;
+                      {% elif 'auto-locked' in state_l %}
+                        --tile-color: #D50000 !important;
+                        --primary-text-color: #D50000 !important;
+                        --secondary-text-color: #D50000 !important;
+                      {% elif 'locked (unlock to apply)' in state_l %}
+                        --tile-color: #D50000 !important;
+                        --primary-text-color: #D50000 !important;
+                        --secondary-text-color: #D50000 !important;
+                      {% elif 'settings unlocked' in state_l %}
+                        --tile-color: #2196F3 !important;
+                        --primary-text-color: #2196F3 !important;
+                        --secondary-text-color: #2196F3 !important;
+                      {% elif 'settings locked' in state_l %}
+                        --tile-color: #9E9E9E !important;
+                        --primary-text-color: #9E9E9E !important;
+                        --secondary-text-color: #9E9E9E !important;
+                      {% endif %}
+                    }
+      - cards:
+          - type: heading
+            heading: SOC and Current
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: tile
+                entity: number.ck0_bms_soc_set_cmd
+                name: SOC Set Cmd
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_soc_scaling_min
+                name: SOC Scale Min
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_soc_scaling_max
+                name: SOC Scale Max
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_max_charge_current
+                name: Max Chg Curr
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_max_discharge_current
+                name: Max Dchg Curr
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+      - cards:
+          - type: heading
+            heading: Voltage Limits
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: tile
+                entity: number.ck0_bms_voltage_limit_offset_lower
+                name: VLimit Offs Low
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_voltage_limit_offset_upper
+                name: VLimit Offs High
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_cell_voltage_working_min
+                name: CellV Work Min
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_cell_voltage_working_max
+                name: CellV Work Max
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_cell_voltage_soft_min
+                name: CellV Soft Min
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_cell_voltage_soft_max
+                name: CellV Soft Max
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+      - cards:
+          - type: heading
+            heading: Balancing
+          - type: markdown
+            content: |
+              **Note:** `Auto Bal Period` is in milliseconds.
+              - `0` = balancing disabled
+              - `30000` = 30 second balancing period
+          - type: grid
+            columns: 2
+            square: false
+            cards:
+              - type: tile
+                entity: number.ck0_bms_auto_balancing_period
+                name: Auto Bal Period
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_balancing_periods_per_mv
+                name: Bal Periods/mV
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_balance_min_offset
+                name: Bal Min Offset
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
+              - type: tile
+                entity: number.ck0_bms_minimum_balancing_voltage
+                name: Min Bal V
+                features_position: bottom
+                features:
+                  - type: numeric-input
+                    style: buttons
   - title: System
-    cards:
-      - type: entities
-        title: Device Info
-        entities:
-          - entity: sensor.ck0_bms_serial
-            name: BMS Serial
-          - entity: sensor.ck0_wifi_ssid
-            name: WiFi SSID
-          - entity: sensor.ck0_wifi_ip
-            name: WiFi IP
-          - entity: sensor.ck0_wifi_rssi
-            name: WiFi RSSI
-          - entity: sensor.ck0_uptime
-            name: Uptime
-          - entity: sensor.ck0_bms_loop_frequency
-            name: Loop Frequency
-          - entity: sensor.ck0_bms_adc_sample_count
-            name: ADC Samples
-          - entity: sensor.ck0_bms_supply_3v3
-            name: Supply 3.3V
-          - entity: sensor.ck0_bms_supply_5v
-            name: Supply 5V
-          - entity: sensor.ck0_bms_supply_12v
-            name: Supply 12V
-          - entity: sensor.ck0_bms_supply_contactor
-            name: Supply Contactor
-
-      - type: custom:mushroom-light-card
-        entity: light.ck0_display_backlight
-        name: LCD Backlight
-        use_light_color: false
-        show_brightness_control: true
-
-  - title: BMS Log
+    type: sections
+    max_columns: 2
+    sections:
+      - cards:
+          - type: heading
+            heading: BMS
+          - type: entities
+            title: BMS Device Info
+            entities:
+              - entity: sensor.ck0_bms_serial
+                name: BMS Serial
+              - entity: sensor.ck0_uptime
+                name: Uptime
+              - entity: sensor.ck0_bms_loop_frequency
+                name: Loop Frequency
+              - entity: sensor.ck0_bms_adc_sample_count
+                name: ADC Samples
+              - entity: sensor.ck0_bms_supply_3v3
+                name: Supply 3.3V
+              - entity: sensor.ck0_bms_supply_5v
+                name: Supply 5V
+              - entity: sensor.ck0_bms_supply_12v
+                name: Supply 12V
+              - entity: sensor.ck0_bms_supply_contactor
+                name: Supply Contactor
+      - cards:
+          - type: heading
+            heading: HMI
+          - type: tile
+            entity: light.ck0_display_backlight
+            name: LCD Backlight
+            grid_options:
+              columns: 12
+            features_position: bottom
+            features:
+              - type: light-brightness
+          - type: entities
+            title: HMI Connectivity
+            entities:
+              - entity: sensor.ck0_wifi_ssid
+                name: WiFi SSID
+              - entity: sensor.ck0_wifi_ip
+                name: WiFi IP
+              - entity: sensor.ck0_wifi_rssi
+                name: WiFi RSSI
+          - type: entities
+            title: HMI Debug
+            entities:
+              - entity: sensor.ck0_internal_temperature
+                name: Internal Temp
+              - entity: sensor.ck0_heap_free
+                name: Heap Free
+              - entity: sensor.ck0_heap_max_block
+                name: Heap Max Block
+              - entity: sensor.ck0_loop_time
+                name: Loop Time
+  - title: Log
     panel: true
     cards:
       - type: vertical-stack
@@ -457,26 +602,24 @@ views:
                 ha-markdown {
                   padding: 16px !important;
                 }
-            content: |
+            content: >
               ## BMS Log Lines
-              ```
-              {% for i in range(1, 51) %}{% set s = states('sensor.ck0_bms_log_%02d' | format(i)) %}{% if s not in ['unknown', 'unavailable'] %}{{ s }}
-              {% endif %}{% endfor %}```
 
-  - title: Events
-    cards:
-      - type: vertical-stack
-        cards:
-          - type: entities
-            title: Active Events
-            show_header_toggle: false
-            state_color: true
-            entities:
-              - entity: sensor.ck0_bms_last_event_text
-                name: Last Event Status
-              - entity: sensor.ck0_bms_event_history
-                name: Event History (Log)
-          
+              ```
+
+              {% for i in range(1, 51) %}{% set s =
+              states('sensor.ck0_bms_log_%02d' | format(i)) %}{% if s not in
+              ['unknown', 'unavailable'] %}{{ s }}
+
+              {% endif %}{% endfor %}```
+  - title: Event
+    type: sections
+    max_columns: 5
+    sections:
+      - cards:
+          - type: heading
+            heading: Status
+            heading_style: title
           - type: custom:auto-entities
             card:
               type: grid
@@ -485,20 +628,27 @@ views:
               square: false
             card_param: cards
             filter:
-              template: |
-                {% for state in states.sensor | selectattr('entity_id', 'search', 'ck0_(fatal|critical|warning|info)_') | sort(attribute='attributes.friendly_name') -%}
+              template: >
+                {% for state in states.sensor | selectattr('entity_id',
+                'search', 'ck0_(fatal|critical|warning|info)_') |
+                sort(attribute='attributes.friendly_name') -%}
                   {% if state.state not in ['INACTIVE', 'unknown', 'unavailable'] and not state.state.startswith('INACTIVE') -%}
-                    {% set color = '#FFC107' -%}
-                    {% if 'FATAL' in state.state %}{% set color = '#D32F2F' -%}
-                    {% elif 'CRITICAL' in state.state %}{% set color = '#F44336' -%}
-                    {% elif 'WARNING' in state.state %}{% set color = '#FFC107' -%}
-                    {% elif 'INFO' in state.state %}{% set color = '#2196F3' -%}
+                    {% set color = '#2196F3' -%}{% set level = 'Info' -%}
+                    {% if 'FATAL' in state.state %}{% set color = '#D50000' -%}{% set level = 'Fatal' -%}
+                    {% elif 'CRITICAL' in state.state %}{% set color = '#F44336' -%}{% set level = 'Critical' -%}
+                    {% elif 'WARNING' in state.state %}{% set color = '#FFC107' -%}{% set level = 'Warning' -%}
+                    {% elif 'INFO' in state.state %}{% set color = '#2196F3' -%}{% set level = 'Info' -%}
+                    {% elif 'fatal' in state.entity_id %}{% set color = '#D50000' -%}{% set level = 'Fatal' -%}
+                    {% elif 'critical' in state.entity_id %}{% set color = '#F44336' -%}{% set level = 'Critical' -%}
+                    {% elif 'warning' in state.entity_id %}{% set color = '#FFC107' -%}{% set level = 'Warning' -%}
+                    {% elif 'info' in state.entity_id %}{% set color = '#2196F3' -%}{% set level = 'Info' -%}
                     {% endif -%}
                     {{
                       {
                         "type": "tile",
                         "entity": state.entity_id,
-                        "name": state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim,
+                        "name": (state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim),
+                        "color": color,
                         "card_mod": {
                           "style": "ha-card { --tile-color: " + color + " !important; }"
                         }
@@ -508,7 +658,6 @@ views:
                 {%- endfor %}
             show_empty: false
             unique: true
-
           - type: custom:auto-entities
             card:
               type: grid
@@ -517,14 +666,23 @@ views:
               square: false
             card_param: cards
             filter:
-              template: |
-                {% for state in states.sensor | selectattr('entity_id', 'search', 'ck0_(fatal|critical|warning|info)_') | sort(attribute='attributes.friendly_name') -%}
+              template: >
+                {% for state in states.sensor | selectattr('entity_id',
+                'search', 'ck0_(fatal|critical|warning|info)_') |
+                sort(attribute='attributes.friendly_name') -%}
                   {% if state.state.startswith('INACTIVE (') -%}
+                    {% set level = 'Info' -%}
+                    {% if 'fatal' in state.entity_id %}{% set level = 'Fatal' -%}
+                    {% elif 'critical' in state.entity_id %}{% set level = 'Critical' -%}
+                    {% elif 'warning' in state.entity_id %}{% set level = 'Warning' -%}
+                    {% elif 'info' in state.entity_id %}{% set level = 'Info' -%}
+                    {% endif -%}
                     {{
                       {
                         "type": "tile",
                         "entity": state.entity_id,
-                        "name": state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim,
+                        "name": (state.attributes.friendly_name | replace("CellKeeper0", "") | replace("ck0", "") | replace("Fatal:", "") | replace("Critical:", "") | replace("Warning:", "") | replace("Info:", "") | trim),
+                        "color": "#9C27B0",
                         "card_mod": {
                           "style": "ha-card { --tile-color: #9C27B0 !important; }"
                         }
@@ -534,15 +692,21 @@ views:
                 {%- endfor %}
             show_empty: false
             unique: true
-
-      - type: vertical-stack
+        column_span: 5
+      - type: grid
         cards:
-          - type: grid
-            title: Voltage & Current Events
+          - type: heading
+            heading: All Event Types
+            heading_style: title
+          - square: false
+            type: grid
             columns: 2
-            square: false
             cards:
               - type: tile
+                entity: sensor.ck0_info_boot_normal
+                name: Boot Normal
+                vertical: false
+                features_position: bottom
                 card_mod:
                   style: |
                     ha-card {
@@ -559,8 +723,6 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_warning_batt_voltage_high
-                name: Batt Voltage High
               - type: tile
                 card_mod:
                   style: |
@@ -578,8 +740,72 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_critical_batt_voltage_very_high
-                name: Batt Voltage Very High
+                entity: sensor.ck0_info_boot_watchdog
+                name: Boot Watchdog
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_info_restarting
+                name: Restarting
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_info_inverter_detected
+                name: Inverter Detected
+            title: Info Events
+          - square: false
+            type: grid
+            columns: 2
+            cards:
+              - type: tile
+                entity: sensor.ck0_warning_batt_voltage_high
+                name: Batt Voltage High
+                vertical: false
+                features_position: bottom
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
               - type: tile
                 card_mod:
                   style: |
@@ -616,46 +842,8 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_critical_batt_voltage_very_low
-                name: Batt Voltage Very Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
                 entity: sensor.ck0_warning_cell_voltage_high
                 name: Cell Voltage High
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_cell_voltage_very_high
-                name: Cell Voltage Very High
               - type: tile
                 card_mod:
                   style: |
@@ -692,128 +880,8 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_critical_cell_voltage_very_low
-                name: Cell Voltage Very Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_voltage_mismatch
-                name: Voltage Mismatch
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
                 entity: sensor.ck0_warning_soft_charge_exceeded
                 name: Soft Charge Exceeded
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_overcurrent_charging
-                name: Overcurrent Charging
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_overcurrent_discharging
-                name: Overcurrent Discharging
-
-          - type: grid
-            title: Supply Voltage Events
-            columns: 2
-            square: false
-            cards:
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_3v3_low
-                name: 3V3 Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_3v3_high
-                name: 3V3 High
               - type: tile
                 card_mod:
                   style: |
@@ -907,52 +975,8 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_critical_ctr_supply_low
-                name: Ctr Supply Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_fatal_ctr_supply_very_low
-                name: Ctr Supply Very Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
                 entity: sensor.ck0_warning_ctr_supply_high
                 name: Ctr Supply High
-          
-          - type: grid
-            title: Stale Data Events
-            columns: 2
-            square: false
-            cards:
               - type: tile
                 card_mod:
                   style: |
@@ -1048,14 +1072,457 @@ views:
                     }
                 entity: sensor.ck0_warning_cell_voltages_stale
                 name: Cell Voltages Stale
-
-      - type: vertical-stack
-        cards:
-          - type: grid
-            title: Contactor Events
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_warning_batt_temp_high
+                name: Batt Temp High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_warning_batt_temp_low
+                name: Batt Temp Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_warning_loop_overrun
+                name: Loop Overrun
+            title: Warning Events
+          - square: false
+            type: grid
             columns: 2
-            square: false
             cards:
+              - type: tile
+                entity: sensor.ck0_critical_batt_voltage_very_high
+                name: Batt Voltage Very High
+                vertical: false
+                features_position: bottom
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_batt_voltage_very_low
+                name: Batt Voltage Very Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_cell_voltage_very_high
+                name: Cell Voltage Very High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_cell_voltage_very_low
+                name: Cell Voltage Very Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_voltage_mismatch
+                name: Voltage Mismatch
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_overcurrent_charging
+                name: Overcurrent Charging
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_overcurrent_discharging
+                name: Overcurrent Discharging
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_3v3_low
+                name: 3V3 Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_3v3_high
+                name: 3V3 High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_ctr_supply_low
+                name: Ctr Supply Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_pre_voltage_high
+                name: PRE Voltage High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_pre_current_high
+                name: PRE Current High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_pos_unexpected_open
+                name: POS Unexpected Open
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_neg_unexpected_open
+                name: NEG Unexpected Open
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_closing_failed
+                name: Closing Failed
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_batt_temp_very_high
+                name: Batt Temp Very High
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_batt_temp_very_low
+                name: Batt Temp Very Low
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_bmb_read_error
+                name: BMB Read Error
+              - type: tile
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
+                entity: sensor.ck0_critical_bmb_crc_mismatch
+                name: BMB CRC Mismatch
+            title: Critical Events
+          - square: false
+            type: grid
+            columns: 2
+            cards:
+              - type: tile
+                entity: sensor.ck0_fatal_ctr_supply_very_low
+                name: Ctr Supply Very Low
+                vertical: false
+                features_position: bottom
+                card_mod:
+                  style: |
+                    ha-card {
+                      {% set state = states(config.entity) %}
+                      {% if 'FATAL' in state %}
+                        --tile-color: #D50000 !important;
+                      {% elif 'CRITICAL' in state %}
+                        --tile-color: #F44336 !important;
+                      {% elif 'WARNING' in state %}
+                        --tile-color: #FFC107 !important;
+                      {% elif 'INFO' in state %}
+                        --tile-color: #2196F3 !important;
+                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
+                        --tile-color: #9C27B0 !important;
+                      {% endif %}
+                    }
               - type: tile
                 card_mod:
                   style: |
@@ -1187,321 +1654,91 @@ views:
                         --tile-color: #9C27B0 !important;
                       {% endif %}
                     }
-                entity: sensor.ck0_critical_pre_voltage_high
-                name: PRE Voltage High
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_pre_current_high
-                name: PRE Current High
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_pos_unexpected_open
-                name: POS Unexpected Open
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_neg_unexpected_open
-                name: NEG Unexpected Open
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_closing_failed
-                name: Closing Failed
-          
-          - type: grid
-            title: Temperature Events
-            columns: 2
-            square: false
-            cards:
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_warning_batt_temp_high
-                name: Batt Temp High
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_batt_temp_very_high
-                name: Batt Temp Very High
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_warning_batt_temp_low
-                name: Batt Temp Low
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_batt_temp_very_low
-                name: Batt Temp Very Low
-
-          - type: grid
-            title: System Events
-            columns: 2
-            square: false
-            cards:
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_bmb_read_error
-                name: BMB Read Error
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_critical_bmb_crc_mismatch
-                name: BMB CRC Mismatch
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_warning_inverter_detected
-                name: Inverter Detected
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
                 entity: sensor.ck0_fatal_e_stop_pressed
                 name: E-Stop Pressed
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_warning_loop_overrun
-                name: Loop Overrun
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_info_boot_normal
-                name: Boot Normal
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_info_boot_watchdog
-                name: Boot Watchdog
-              - type: tile
-                card_mod:
-                  style: |
-                    ha-card {
-                      {% set state = states(config.entity) %}
-                      {% if 'FATAL' in state %}
-                        --tile-color: #D50000 !important;
-                      {% elif 'CRITICAL' in state %}
-                        --tile-color: #F44336 !important;
-                      {% elif 'WARNING' in state %}
-                        --tile-color: #FFC107 !important;
-                      {% elif 'INFO' in state %}
-                        --tile-color: #2196F3 !important;
-                      {% elif state != 'INACTIVE (0)' and state != 'INACTIVE' %}
-                        --tile-color: #9C27B0 !important;
-                      {% endif %}
-                    }
-                entity: sensor.ck0_info_restarting
-                name: Restarting
+            title: Fatal Events
+        column_span: 5
+  - title: Note
+    type: sections
+    max_columns: 2
+    sections:
+      - cards:
+          - type: heading
+            heading: Deye
+          - type: markdown
+            content: >
+              ### Deye Notes
+
+              - `0% SOC` is necessary to stop Deye discharging in off-grid mode,
+              not just `0A` discharge.
+
+              - `0A` charge will stop charging. You do **not** need to send
+              `100% SOC`.
+
+              - Deye does not stop charging at `100% SOC`; it only follows
+              charge `A` and `V` limits.
+
+              - The charge voltage limit is obeyed. It goes about `1V` above the
+              setpoint and holds there.
+
+
+              #### Off-Grid
+
+              - When charge current limit is set to `0A`, the inverter may
+              over-volt the AC output on load drops.
+
+              - Ideally, regulate the battery top SOC with the **Charge Voltage
+              Limit**, not the current limit.
+
+              - Ensure the `V Offset` is set low enough to take effect before
+              current limiting takes over at the top of charge regulation.
+      - cards:
+          - type: heading
+            heading: Solax
+          - type: markdown
+            content: >
+              ### Solax Notes
+
+              - Solax needs `100% SOC` to stop charging.
+
+              - It will feather current at `99% SOC`.
+
+              - Discharge current limits are followed with reasonable error. If
+              set to `0A`, it gently discharges.
+
+              - Charging current-limit following is not yet confirmed.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Events
+            heading_style: title
+          - type: markdown
+            content: >
+              ### Event Severity Levels & Safety Logic
+
+              - **INFO**: General information about system status.
+
+              - **WARNING**: Potential issues. (Repeated warnings may escalate
+              to CRITICAL).
+
+              - **CRITICAL**: Serious issues. Will escalate to **FATAL** after a
+              per-event leeway time (e.g., 1000ms).
+
+              - **FATAL**: Immediate action required. Opens contactors.
+
+
+              **Contactor Safety Protocol (Two-Step):**
+
+              1. Set current limits to zero.
+
+              2. Wait until current falls below threshold (or FORCE_OPEN after
+              2s for FATAL events).
+
+
+              **Event Settings:**
+
+              - Level: INFO / WARNING / CRITICAL / FATAL.
+
+              - Leeway: Milliseconds before escalation.
+
+              - Max Occurrences: Threshold for escalation.

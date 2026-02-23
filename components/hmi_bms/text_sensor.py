@@ -8,6 +8,7 @@ from . import HMIBMS
 CONF_SERIAL = "serial"
 CONF_EVENT_HISTORY = "event_history"
 CONF_BALANCING_CELLS = "balancing_cells"
+CONF_SETTINGS_WRITE_STATUS = "settings_write_status"
 CONF_LOG = "log"
 CONF_LOG_LINES = "log_lines"
 
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_SERIAL): text_sensor.text_sensor_schema(),
     cv.Optional(CONF_EVENT_HISTORY): text_sensor.text_sensor_schema(),
     cv.Optional(CONF_BALANCING_CELLS): text_sensor.text_sensor_schema(),
+    cv.Optional(CONF_SETTINGS_WRITE_STATUS): text_sensor.text_sensor_schema(),
     cv.Optional(CONF_LOG): text_sensor.text_sensor_schema(),
     cv.Optional(CONF_LOG_LINES): cv.ensure_list(text_sensor.text_sensor_schema()),
 })
@@ -93,6 +95,9 @@ async def to_code(config):
     if CONF_BALANCING_CELLS in config:
         sens = await text_sensor.new_text_sensor(config[CONF_BALANCING_CELLS])
         cg.add(parent.set_balancing_cells_text_sensor(sens))
+    if CONF_SETTINGS_WRITE_STATUS in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_SETTINGS_WRITE_STATUS])
+        cg.add(parent.set_settings_status_text_sensor(sens))
     if CONF_LOG in config:
         sens = await text_sensor.new_text_sensor(config[CONF_LOG])
         cg.add(parent.set_log_text_sensor(sens))
