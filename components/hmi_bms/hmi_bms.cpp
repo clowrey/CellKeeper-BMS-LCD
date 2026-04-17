@@ -137,13 +137,6 @@ void HMIBMS::update() {
     if (this->adc_sample_count_sensor_) add_reg(HMI_REG_ADC_SAMPLE_COUNT);
     if (this->loop_frequency_hz_sensor_) add_reg(HMI_REG_LOOP_FREQUENCY_HZ);
 
-    // Add configured module temperature sensors
-    for (size_t i = 0; i < this->module_temperature_sensors_.size(); i++) {
-      if (this->module_temperature_sensors_[i] != nullptr) {
-        add_reg(HMI_REG_MODULE_TEMPS_START + i);
-      }
-    }
-    
     // Add configured raw temperature sensors
     for (size_t i = 0; i < this->raw_temperature_sensors_.size(); i++) {
       if (this->raw_temperature_sensors_[i] != nullptr) {
@@ -162,7 +155,26 @@ void HMIBMS::update() {
     this->send_packet_(payload);
   }
 
-  // 2. Read Cell Voltages (Tick 2)
+  // 2. Read Module Temperatures (Tick 1) in a dedicated request.
+  // Module temps are now float payloads, so keeping them separate avoids
+  // response truncation when the slot-0 slow poll is large.
+  if (slot == 1 && !this->module_temperature_sensors_.empty()) {
+    std::vector<uint8_t> mt_payload;
+    mt_payload.push_back(HMI_MSG_READ_REGISTERS);
+    mt_payload.push_back(this->address_);
+    for (size_t i = 0; i < this->module_temperature_sensors_.size(); i++) {
+      if (this->module_temperature_sensors_[i] != nullptr) {
+        uint16_t reg = HMI_REG_MODULE_TEMPS_START + i;
+        mt_payload.push_back(reg & 0xFF);
+        mt_payload.push_back(reg >> 8);
+      }
+    }
+    if (mt_payload.size() > 2) {
+      this->send_packet_(mt_payload);
+    }
+  }
+
+  // 3. Read Cell Voltages (Tick 2)
   if (slot == 2 && !this->cell_voltage_sensors_.empty()) {
     ESP_LOGV(TAG, "Polling cell voltages (slot 2). Sensors: %zu", this->cell_voltage_sensors_.size());
     std::vector<uint8_t> cv_payload;
@@ -171,7 +183,7 @@ void HMIBMS::update() {
     this->send_packet_(cv_payload);
   }
 
-  // 3. Read Events (Tick 5)
+  // 4. Read Events (Tick 5)
   if (slot == 5) {
     std::vector<uint8_t> event_payload;
     event_payload.push_back(HMI_MSG_READ_EVENTS);
@@ -181,7 +193,7 @@ void HMIBMS::update() {
     this->send_packet_(event_payload);
   }
 
-  // 4. Read Balancing Times (Tick 7)
+  // 5. Read Balancing Times (Tick 7)
   if (slot == 7 && this->balancing_cells_text_sensor_) {
     std::vector<uint8_t> bal_payload;
     bal_payload.push_back(HMI_MSG_READ_BALANCING_TIMES);
@@ -189,7 +201,7 @@ void HMIBMS::update() {
     this->send_packet_(bal_payload);
   }
 
-  // 5. Read Log (Tick 9) - Poll for new log messages
+  // 6. Read Log (Tick 9) - Poll for new log messages
   //    Send 2 requests back-to-back to double throughput (each response carries up to 256 bytes,
   //    so 2 requests can drain up to 512 bytes per round-trip instead of 256).
   //    Flow control uses log_busy_ which clears when a non-full response arrives (<240 bytes),
@@ -649,12 +661,20 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       int32_t val = (int32_t)((uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24));
       this->publish_queue_.push_back({this->neg_contactor_voltage_mV_sensor_, (float)val});
     } else if (reg_id == HMI_REG_TEMPERATURE_MIN) {
-      int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      t_min = (float)val;
+      uint32_t raw = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+      union {
+        uint32_t u;
+        float f;
+      } conv{raw};
+      t_min = conv.f;
       if (this->temperature_min_dC_sensor_) this->publish_queue_.push_back({this->temperature_min_dC_sensor_, t_min});
     } else if (reg_id == HMI_REG_TEMPERATURE_MAX) {
-      int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      t_max = (float)val;
+      uint32_t raw = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+      union {
+        uint32_t u;
+        float f;
+      } conv{raw};
+      t_max = conv.f;
       if (this->temperature_max_dC_sensor_) this->publish_queue_.push_back({this->temperature_max_dC_sensor_, t_max});
     } else if (reg_id == HMI_REG_CELL_VOLTAGE_MIN) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
@@ -714,10 +734,10 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
       this->cell_voltage_working_max_number_->publish_from_bus((float)val);
     } else if (reg_id == HMI_REG_SOC_SCALING_MIN && this->soc_scaling_min_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->soc_scaling_min_number_->publish_from_bus((float)val);
+      this->soc_scaling_min_number_->publish_from_bus((float)val * 0.01f);
     } else if (reg_id == HMI_REG_SOC_SCALING_MAX && this->soc_scaling_max_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
-      this->soc_scaling_max_number_->publish_from_bus((float)val);
+      this->soc_scaling_max_number_->publish_from_bus((float)val * 0.01f);
     } else if (reg_id == HMI_REG_VOLTAGE_LIMIT_OFFSET_LOWER && this->voltage_limit_offset_lower_number_ != nullptr) {
       int16_t val = (int16_t)(v[0] | (v[1] << 8));
       this->voltage_limit_offset_lower_number_->publish_from_bus((float)val);
@@ -757,8 +777,12 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
     } else if (reg_id >= HMI_REG_MODULE_TEMPS_START && reg_id <= HMI_REG_MODULE_TEMPS_END) {
       uint16_t idx = reg_id - HMI_REG_MODULE_TEMPS_START;
       if (idx < this->module_temperature_sensors_.size() && this->module_temperature_sensors_[idx] != nullptr) {
-        int16_t val = (int16_t)(v[0] | (v[1] << 8));
-        this->publish_queue_.push_back({this->module_temperature_sensors_[idx], (float)val / 10.0f});
+        uint32_t raw = (uint32_t)v[0] | ((uint32_t)v[1] << 8) | ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+        union {
+          uint32_t u;
+          float f;
+        } conv{raw};
+        this->publish_queue_.push_back({this->module_temperature_sensors_[idx], conv.f});
       }
     } else if (reg_id >= HMI_REG_RAW_TEMPS_START && reg_id <= HMI_REG_RAW_TEMPS_END) {
       uint16_t idx = reg_id - HMI_REG_RAW_TEMPS_START;
@@ -770,11 +794,11 @@ void HMIBMS::handle_read_registers_response_(const uint8_t *data, size_t length)
     offset += val_size;
   }
 
-  // Calculate and publish deltas using cached values or existing state
+  // Calculate and publish deltas using cached values or existing state.
+  // Temperature values are now published directly in degC from the bus.
   if (this->temperature_delta_sensor_) {
-    // Sensors have multiply: 0.1 filter, so state is in C. Convert back to dC for calculation.
-    float min_val = std::isnan(t_min) ? (this->temperature_min_dC_sensor_ ? this->temperature_min_dC_sensor_->state * 10.0f : NAN) : t_min;
-    float max_val = std::isnan(t_max) ? (this->temperature_max_dC_sensor_ ? this->temperature_max_dC_sensor_->state * 10.0f : NAN) : t_max;
+    float min_val = std::isnan(t_min) ? (this->temperature_min_dC_sensor_ ? this->temperature_min_dC_sensor_->state : NAN) : t_min;
+    float max_val = std::isnan(t_max) ? (this->temperature_max_dC_sensor_ ? this->temperature_max_dC_sensor_->state : NAN) : t_max;
     if (!std::isnan(min_val) && !std::isnan(max_val)) {
       this->publish_queue_.push_back({this->temperature_delta_sensor_, max_val - min_val});
     }

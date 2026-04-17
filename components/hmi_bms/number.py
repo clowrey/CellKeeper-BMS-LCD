@@ -127,17 +127,17 @@ async def to_code(config):
         cg.add(parent.set_soc_number(n))
     if CONF_SOC_SCALING_MIN in config:
         conf = config[CONF_SOC_SCALING_MIN]
-        n = await number.new_number(conf, parent, 27, HMI_TYPE_INT16, 100.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 27, HMI_TYPE_INT16, 0.01, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_soc_scaling_min_number(n))
     if CONF_SOC_SCALING_MAX in config:
         conf = config[CONF_SOC_SCALING_MAX]
-        n = await number.new_number(conf, parent, 28, HMI_TYPE_INT16, 100.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 28, HMI_TYPE_INT16, 0.01, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_soc_scaling_max_number(n))
     if CONF_MAX_CHARGE_CURRENT in config:
         conf = config[CONF_MAX_CHARGE_CURRENT]
-        n = await number.new_number(conf, parent, 39, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 44, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_max_charge_current_number(n))
     if CONF_MAX_DISCHARGE_CURRENT in config:
         conf = config[CONF_MAX_DISCHARGE_CURRENT]
-        n = await number.new_number(conf, parent, 40, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
+        n = await number.new_number(conf, parent, 45, HMI_TYPE_INT32, 1.0, min_value=conf["min_value"], max_value=conf["max_value"], step=conf["step"])
         cg.add(parent.set_max_discharge_current_number(n))

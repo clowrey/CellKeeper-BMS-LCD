@@ -65,8 +65,8 @@ views:
                   yellow: 10
                   red: 0
               - type: gauge
-                entity: sensor.ck0_bms_voltage
-                name: Voltage
+                entity: sensor.ck0_pack_voltage
+                name: Pack Voltage
                 min: 288
                 max: 410
                 needle: true
@@ -146,7 +146,7 @@ views:
                 name: Stop BMS
                 icon: mdi:stop
               - entity: button.ck0_bms_calibrate
-                name: Calibrate BMS
+                name: Offline Calibration (Inverter Disconnected, Contactors Open)
                 icon: mdi:wrench
   - title: Detail
     type: sections
@@ -158,10 +158,12 @@ views:
           - type: entities
             title: Voltage & Capacity
             entities:
+              - entity: sensor.ck0_pack_voltage
+                name: Pack Voltage
               - entity: sensor.ck0_bms_output_voltage
                 name: Output Voltage
-              - entity: sensor.ck0_voltage_bmb_sum
-                name: Voltage BMB Sum
+              - entity: sensor.ck0_pack_voltage_bmb
+                name: Pack Voltage BMB
               - entity: sensor.ck0_bms_contactor_voltage_positive
                 name: Positive Contactor
               - entity: sensor.ck0_bms_contactor_voltage_negative

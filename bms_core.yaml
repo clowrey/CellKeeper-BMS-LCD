@@ -63,7 +63,7 @@ sensor:
       unit_of_measurement: "Ah"
     battery_voltage_mV:
       id: bms_voltage_mV
-      name: "BMS Voltage"
+      name: "Pack Voltage"
       unit_of_measurement: "V"
       filters:
         - multiply: 0.001
@@ -81,14 +81,10 @@ sensor:
       id: bms_temp_min
       name: "BMS Temp Min"
       unit_of_measurement: "°C"
-      filters:
-        - multiply: 0.1
     temperature_max_dC:
       id: bms_temp_max
       name: "BMS Temp Max"
       unit_of_measurement: "°C"
-      filters:
-        - multiply: 0.1
     cell_voltage_min_mV:
       id: bms_cell_min
       name: "BMS Cell Min"
@@ -310,7 +306,7 @@ sensor:
     name: "WiFi RSSI"
 
   - platform: template
-    name: "Voltage BMB Sum"
+    name: "Pack Voltage BMB"
     id: bms_voltage_bmb_sum
     unit_of_measurement: "V"
     device_class: voltage
