@@ -26,7 +26,7 @@ hmi_bms:
 sensor:
   - platform: uptime
     id: uptime_sec
-    name: "Uptime"
+    name: "HMI Uptime"
     update_interval: 5s
 
   - platform: internal_temperature
@@ -299,6 +299,19 @@ sensor:
         return id(bms_soc_set_cmd).state;
       }
       return NAN;
+    update_interval: 1s
+
+  - platform: template
+    name: "BMS Uptime"
+    id: bms_uptime_sec
+    unit_of_measurement: "s"
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: |-
+      if (std::isnan(id(bms_millis).state)) {
+        return NAN;
+      }
+      return id(bms_millis).state / 1000.0f;
     update_interval: 1s
 
   - platform: wifi_signal

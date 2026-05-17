@@ -38,7 +38,11 @@ interval:
           if (id(bms_last_event_text).has_state())
             lv_label_set_text(id(label_events), id(bms_last_event_text).state.c_str());
 
-          lv_label_set_text(id(label_uptime), str_sprintf("Uptime: %.0fs", id(uptime_sec).state).c_str());
+          if (!std::isnan(id(bms_uptime_sec).state)) {
+            lv_label_set_text(id(label_uptime), str_sprintf("HMI/BMS: %.0fs / %.0fs", id(uptime_sec).state, id(bms_uptime_sec).state).c_str());
+          } else {
+            lv_label_set_text(id(label_uptime), str_sprintf("HMI/BMS: %.0fs / --", id(uptime_sec).state).c_str());
+          }
 
           // --- DEBUG PAGE UPDATES ---
           if (lv_scr_act() == id(debug_page)->obj) {

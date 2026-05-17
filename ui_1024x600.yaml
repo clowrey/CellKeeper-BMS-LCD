@@ -147,7 +147,7 @@ lvgl:
         # Uptime (Verify UI is alive)
         - label:
             id: label_uptime
-            text: "Uptime: --s"
+            text: "HMI/BMS: -- / --"
             align: BOTTOM_MID
             y: -10
             text_font: font_roboto_20

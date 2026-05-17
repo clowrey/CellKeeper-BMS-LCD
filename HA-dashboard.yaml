@@ -533,8 +533,8 @@ views:
             entities:
               - entity: sensor.ck0_bms_serial
                 name: BMS Serial
-              - entity: sensor.ck0_uptime
-                name: Uptime
+              - entity: sensor.ck0_bms_uptime
+                name: BMS Uptime
               - entity: sensor.ck0_bms_loop_frequency
                 name: Loop Frequency
               - entity: sensor.ck0_bms_adc_sample_count
@@ -568,8 +568,10 @@ views:
               - entity: sensor.ck0_wifi_rssi
                 name: WiFi RSSI
           - type: entities
-            title: HMI Debug
+            title: HMI Device Info
             entities:
+              - entity: sensor.ck0_hmi_uptime
+                name: HMI Uptime
               - entity: sensor.ck0_internal_temperature
                 name: Internal Temp
               - entity: sensor.ck0_heap_free

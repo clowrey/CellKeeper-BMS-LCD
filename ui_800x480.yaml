@@ -147,7 +147,7 @@ lvgl:
         # Uptime
         - label:
             id: label_uptime
-            text: "Uptime: --s"
+            text: "HMI/BMS: -- / --"
             align: BOTTOM_MID
             y: -5
             text_font: font_roboto_20
